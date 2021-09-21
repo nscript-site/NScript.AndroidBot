@@ -27,7 +27,7 @@ namespace NScript.AndroidBot
 
         public static Socket net_listen(IPAddress addr, UInt16 port, int backlog)
         {
-            Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
             IPEndPoint sin = new IPEndPoint(addr, port);
@@ -58,6 +58,12 @@ namespace NScript.AndroidBot
         public static int net_recv_all(Socket socket, Byte[] buff)
         {
             int len = socket.Receive(buff, buff.Length, SocketFlags.None);
+            return len;
+        }
+
+        public static int net_recv_all(Socket socket, Span<Byte> buff)
+        {
+            int len = socket.Receive(buff, SocketFlags.None);
             return len;
         }
 

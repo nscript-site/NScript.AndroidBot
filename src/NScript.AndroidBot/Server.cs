@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
@@ -66,6 +65,9 @@ namespace NScript.AndroidBot
         public UInt16 local_port; // selected from port_range
         public bool tunnel_enabled;
         public bool tunnel_forward; // use "adb forward" instead of "adb reverse"
+
+        public String DeviceName { get; private set; }
+        public System.Drawing.Size FrameSize { get; private set; }
 
         public Action<String> OnMsg { get; set; }
 
@@ -132,7 +134,7 @@ namespace NScript.AndroidBot
 
         static Socket listen_on_port(UInt16 port)
         {
-            return NetUtils.net_listen(IPAddress.Parse("127.0.0.1"), port, 1);
+            return NetUtils.net_listen(IPAddress.Parse("127.0.0.1"), port, 2);
         }
 
         public bool is_regular_file(String filePath)
@@ -430,47 +432,39 @@ namespace NScript.AndroidBot
             return false;
         }
 
-        public bool device_read_info(Socket socket, out String deviceName, out System.Drawing.Size size)
+        public (string,int,int) ReadDeviceInfo(Socket socket)
         {
             byte[] buf = new byte[DEVICE_NAME_FIELD_LENGTH + 4];
-            int r = NetUtils.net_recv_all(socket, buf);
-            deviceName = null;
-            size = new System.Drawing.Size();
-            if (r < DEVICE_NAME_FIELD_LENGTH + 4)
+            if (NetUtils.net_recv_all(socket, buf) < DEVICE_NAME_FIELD_LENGTH + 4)
             {
-                LOGE("Could not retrieve device information");
-                return false;
+                throw new BotException("Could not retrieve device information");
             }
 
-            deviceName = System.Text.Encoding.ASCII.GetString(buf);
-            size.Width = (buf[DEVICE_NAME_FIELD_LENGTH] << 8)
+            int byteCount = 0;
+            for (int i = 0; i < buf.Length; i++)
+            {
+                if (buf[i] == '\0')
+                {
+                    byteCount = i;
+                    break;
+                }
+            }
+
+            String deviceName = System.Text.Encoding.ASCII.GetString(buf, 0, byteCount);
+            int width = (buf[DEVICE_NAME_FIELD_LENGTH] << 8)
                     | buf[DEVICE_NAME_FIELD_LENGTH + 1];
-            size.Height = (buf[DEVICE_NAME_FIELD_LENGTH + 2] << 8)
+            int height = (buf[DEVICE_NAME_FIELD_LENGTH + 2] << 8)
                     | buf[DEVICE_NAME_FIELD_LENGTH + 3];
-            return true;
+            return (deviceName, width, height);
         }
 
-        public bool server_connect_to(out String deviceName, out System.Drawing.Size size)
+        public void ServerConnect()  // server_connect_to()  
         {
-            deviceName = null;
-            size = new System.Drawing.Size();
-
             if (!this.tunnel_forward)
             {
                 this.video_socket = NetUtils.net_accept(this.server_socket);
 
-                if (this.video_socket == null)
-                {
-                    return false;
-                }
-
                 this.control_socket = NetUtils.net_accept(this.server_socket);
-                if (this.control_socket == null)
-                {
-                    // the video_socket will be cleaned up on destroy
-                    return false;
-                }
-
                 if (this.server_socket_closed == false)
                 {
                     this.server_socket_closed = true;
@@ -482,17 +476,8 @@ namespace NScript.AndroidBot
                 UInt32 attempts = 100;
                 UInt32 delay = 100; // ms
                 this.video_socket = this.connect_to_server(local_port, attempts, delay);
-                if (this.video_socket == null)
-                {
-                    return false;
-                }
-
                 // we know that the device is listening, we don't need several attempts
                 this.control_socket = NetUtils.net_connect(IPV4_LOCALHOST, this.local_port);
-                if (this.control_socket == null)
-                {
-                    return false;
-                }
             }
 
             // we don't need the adb tunnel anymore
@@ -500,7 +485,9 @@ namespace NScript.AndroidBot
             this.tunnel_enabled = false;
 
             // The sockets will be closed on stop if device_read_info() fails
-            return device_read_info(this.video_socket, out deviceName, out size);
+            (string deviceName, int width, int height) = ReadDeviceInfo(this.video_socket);
+            this.DeviceName = deviceName;
+            this.FrameSize = new System.Drawing.Size(width, height);
         }
 
         public void server_stop()
