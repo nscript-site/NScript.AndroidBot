@@ -11,7 +11,7 @@ namespace NScript.AndroidBot
 
     public unsafe abstract class PacketSink
     {
-        public abstract bool Open(AVCodec* codec);
+        public abstract bool Open(AVCodec* codec, AVPixelFormat fmt);
         public abstract void Close();
         public abstract bool Push(AVPacket* packet);
     }

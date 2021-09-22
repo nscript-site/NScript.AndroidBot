@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
+    using Geb.Image;
+
     public class BotClient
     {
         private Server Server { get; set; }
@@ -17,10 +19,11 @@ namespace NScript.AndroidBot
 
         public Action<String> OnMsg { get; set; }
 
+        public Action<ImageBgr24> OnRender { get; set; }
+
         public void Run()
         {
             FFmpeg.AutoGen.ffmpeg.RootPath = @"C:\Lib\ffmpeg";
-            FFmpeg.AutoGen.ffmpeg.av_register_all();
 
             BotOptions options = Options;
             if (options == null) options = new BotOptions();
@@ -31,6 +34,9 @@ namespace NScript.AndroidBot
             this.Server.ServerConnect();
             this.Decoder = new Decoder();
             this.FrameSink = new FrameSink();
+            this.FrameSink.Width = this.Server.FrameSize.Width;
+            this.FrameSink.Height = this.Server.FrameSize.Height;
+            this.FrameSink.OnRender = this.OnRender;
             this.Decoder.AddSink(this.FrameSink);
             this.Stream = new Stream(this.Server.video_socket);
             this.Stream.AddSink(this.Decoder);

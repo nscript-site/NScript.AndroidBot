@@ -251,12 +251,12 @@ namespace NScript.AndroidBot
             }
         }
 
-        public bool OpenSinks(AVCodec* codec)
+        public bool OpenSinks(AVCodec* codec, AVPixelFormat fmt)
         {
             for (int i = 0; i < Sinks.Count; i++)
             {
                 var item = Sinks[i];
-                if (item.Open(codec) == false)
+                if (item.Open(codec, fmt) == false)
                 {
                     CloseSinks(i);
                     return false;
@@ -283,7 +283,7 @@ namespace NScript.AndroidBot
                 goto end;
             }
 
-            if (this.OpenSinks(codec) == false)
+            if (this.OpenSinks(codec, AVPixelFormat.AV_PIX_FMT_YUV420P) == false)
             {
                 ex = new BotException("Could not open stream sinks");
                 goto finally_free_codec_ctx;

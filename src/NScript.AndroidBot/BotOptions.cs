@@ -32,7 +32,7 @@ namespace NScript.AndroidBot
         //enum sc_record_format record_format;
         ScPortRange port_range = new ScPortRange { first = 27183, last = 27199 };
         //struct sc_shortcut_mods shortcut_mods;
-        UInt16 max_size;
+        UInt16 max_size = 1024;
         UInt32 bit_rate = 8000000;
         UInt16 max_fps;
         sc_lock_video_orientation lock_video_orientation;

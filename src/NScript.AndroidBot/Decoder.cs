@@ -7,25 +7,84 @@ using System.Threading.Tasks;
 namespace NScript.AndroidBot
 {
     using FFmpeg.AutoGen;
+    using Geb.Image;
 
     public unsafe class FrameSink
     {
+        private SwsContextHolder m_sws = null;
+
         public bool Open()
         {
             return true;
         }
+
+        public int Width { get; set; }
+        public int Height { get; set; }
+
+        public AVPixelFormat PixelFormat { get; set; }
+
+        private Object syncRoot = new object();
+
+        public Action<ImageBgr24> OnRender { get; set; }
+
         public void Close() { }
+
         public bool Push(AVFrame* frame)
         {
+            if (Width > 0 && Height > 0 && frame != null)
+            {
+                ImageBgr24 img = new ImageBgr24(Width, Height);
+                WriteToFrame(frame, (Byte*)img.Start, img.Width * 3, AVPixelFormat.AV_PIX_FMT_BGR24, Width, Height);
+                if (Image != null) Image.Dispose();
+                Image = img;
+                OnRender?.Invoke(img);
+            }
             return true;
+        }
+
+        public ImageBgr24 Image { get; set; }
+
+        public unsafe bool WriteToFrame(AVFrame* m_avFrame, byte* frameData, int stride, AVPixelFormat frameFmt, int width, int height)
+        {
+            if (m_avFrame == null || m_avFrame->data[0] == null) return false;
+
+            SwsContextHolder sws = GetSwsContextHolder(this.Width, this.Height, this.PixelFormat, width, height, frameFmt, ffmpeg.SWS_BILINEAR);
+            byte*[] dstData = { frameData };
+            int[] dstLinesize = { stride };
+
+            ffmpeg.sws_scale(sws.Context, m_avFrame->data,
+               m_avFrame->linesize, 0, Height, dstData,
+               dstLinesize);
+            return true;
+        }
+
+        private SwsContextHolder GetSwsContextHolder(int srcW, int srcH, AVPixelFormat srcFmt, int dstW, int dstH, AVPixelFormat dstFmt, int flags)
+        {
+            if (m_sws == null)
+            {
+                m_sws = new SwsContextHolder(srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags);
+                return m_sws;
+            }
+            else if (m_sws.Match(srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags) == true)
+            {
+                return m_sws;
+            }
+            else
+            {
+                m_sws.Dispose();
+                m_sws = new SwsContextHolder(srcW, srcH, srcFmt, dstW, dstH, dstFmt, flags);
+                return m_sws;
+            }
         }
     }
 
     public unsafe class Decoder : PacketSink
     {
-        public override unsafe bool Open(AVCodec* codec)
+        public override unsafe bool Open(AVCodec* codec, AVPixelFormat fmt)
         {
             decoder_open(codec);
+            foreach (var item in this.FrameSinks)
+                item.PixelFormat = fmt;
             return true;
         }
 

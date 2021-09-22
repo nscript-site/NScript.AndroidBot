@@ -15,6 +15,8 @@ using System.Windows.Shapes;
 
 namespace NScript.AndroidBot.WpfUI
 {
+    using Geb.Image;
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -31,6 +33,7 @@ namespace NScript.AndroidBot.WpfUI
         {
             Client = new BotClient();
             Client.OnMsg = OnMsg;
+            Client.OnRender = OnRender;
             Client.Run();
         }
 
@@ -41,6 +44,32 @@ namespace NScript.AndroidBot.WpfUI
                 this.tbMsgs.AppendText(msg + Environment.NewLine);
                 this.tbMsgs.ScrollToEnd();
             });
+        }
+
+        private ImageBgr24 imgCache;
+        private WriteableBitmap bmpCache;
+
+        private void OnRender(ImageBgr24 img)
+        {
+            if (img == null) return;
+            if (imgCache == null) imgCache = img.Clone();
+            lock(imgCache)
+                imgCache.CloneFrom(img);
+            this.Dispatcher.InvokeAsync(Render);
+        }
+
+        private void Render()
+        {
+            ImageBgr24 imgFrame = imgCache;
+            if (imgFrame == null) return;
+
+            if (bmpCache == null)
+            {
+                bmpCache = new WriteableBitmap(imgCache.Width, imgCache.Height, 96.0, 96.0, PixelFormats.Bgr24, null);
+                this.cvs.Source = bmpCache;
+            }
+            lock (imgCache)
+                bmpCache.WritePixels(new Int32Rect(0, 0, imgCache.Width, imgCache.Height), imgCache.StartIntPtr, imgCache.ByteCount, imgCache.Stride);
         }
     }
 }
