@@ -380,7 +380,7 @@ namespace NScript.AndroidBot
             return 0;
         }
 
-        public bool server_start(ServerParams serverParams)
+        public bool Start(ServerParams serverParams)
         {
             this.Serial = serverParams.serial;
 
@@ -458,7 +458,7 @@ namespace NScript.AndroidBot
             return (deviceName, width, height);
         }
 
-        public void ServerConnect()  // server_connect_to()  
+        public void Connect()  // server_connect_to()  
         {
             if (!this.tunnel_forward)
             {

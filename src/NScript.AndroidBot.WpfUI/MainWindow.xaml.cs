@@ -71,5 +71,11 @@ namespace NScript.AndroidBot.WpfUI
             lock (imgCache)
                 bmpCache.WritePixels(new Int32Rect(0, 0, imgCache.Width, imgCache.Height), imgCache.StartIntPtr, imgCache.ByteCount, imgCache.Stride);
         }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            SetClipboardMsg msg = new SetClipboardMsg("Hello!", false);
+            this.Client.Push(msg);
+        }
     }
 }

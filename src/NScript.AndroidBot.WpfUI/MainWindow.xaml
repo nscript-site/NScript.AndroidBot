@@ -9,9 +9,13 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition></RowDefinition>
+            <RowDefinition Height="32"></RowDefinition>
             <RowDefinition Height="200"></RowDefinition>
         </Grid.RowDefinitions>
         <Image Grid.Row="0" x:Name="cvs"></Image>
-        <TextBox Grid.Row="1" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>
+        <Grid Grid.Row="1" HorizontalAlignment="Left">
+            <Button Width="80" Click="Button_Click">测试剪贴板</Button>
+        </Grid>
+        <TextBox Grid.Row="2" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>
     </Grid>
 </Window>

@@ -45,7 +45,7 @@ namespace NScript.AndroidBot
         bool show_touches;
         bool fullscreen;
         bool always_on_top;
-        bool control;
+        bool control = true;
         bool display;
         bool turn_screen_off;
         bool prefer_text;
