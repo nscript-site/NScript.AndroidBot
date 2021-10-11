@@ -10,7 +10,7 @@ namespace NScript.AndroidBot
     /**
      * Meta key / modifier state.
      */
-    enum android_metastate
+    public enum AndroidMetastate
     {
         /** No meta keys are pressed. */
         AMETA_NONE = 0,
@@ -70,7 +70,7 @@ namespace NScript.AndroidBot
     /**
      * Input event types.
      */
-    enum android_input_event_type
+    public enum AndroidInputEventType
     {
         /** Indicates that the input event is a key event. */
         AINPUT_EVENT_TYPE_KEY = 1,
@@ -81,7 +81,7 @@ namespace NScript.AndroidBot
     /**
      * Key event actions.
      */
-    enum android_keyevent_action
+    public enum AndroidKeyeventAction
     {
         /** The key has been pressed down. */
         AKEY_EVENT_ACTION_DOWN = 0,
@@ -101,7 +101,7 @@ namespace NScript.AndroidBot
     /**
      * Key event flags.
      */
-    enum android_keyevent_flags
+    public enum AndroidKeyeventFlags
     {
         /** This mask is set if the device woke because of this key event. */
         AKEY_EVENT_FLAG_WOKE_HERE = 0x1,
@@ -186,7 +186,7 @@ namespace NScript.AndroidBot
 //#define AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT 8
 
     /** Motion event actions */
-    enum android_motionevent_action
+    public enum AndroidMotionEventAction
     {
         /** Bit mask of the parts of the action code that are the action itself. */
         AMOTION_EVENT_ACTION_MASK = 0xff,
@@ -273,7 +273,7 @@ namespace NScript.AndroidBot
     /**
      * Motion event flags.
      */
-    enum android_motionevent_flags
+    public enum AndroidMotionEventFlags
     {
         /**
          * This flag indicates that the window that received this motion event is partly
@@ -291,7 +291,7 @@ namespace NScript.AndroidBot
     /**
      * Motion event edge touch flags.
      */
-    enum android_motionevent_edge_touch_flags
+    public enum AndroidMotionEventEdgeTouchFlags
     {
         /** No edges intersected. */
         AMOTION_EVENT_EDGE_FLAG_NONE = 0,
@@ -313,7 +313,7 @@ namespace NScript.AndroidBot
      * Constants that identify each individual axis of a motion event.
      * @anchor AMOTION_EVENT_AXIS
      */
-    enum android_motionevent_axis
+    public enum AndroidMotionEventAxis
     {
         /**
          * Axis constant: X axis of a motion event.
@@ -683,7 +683,7 @@ namespace NScript.AndroidBot
      * Constants that identify buttons that are associated with motion events.
      * Refer to the documentation on the MotionEvent class for descriptions of each button.
      */
-    enum android_motionevent_buttons
+    public enum AndroidMotionEventButtons
     {
         /** primary */
         AMOTION_EVENT_BUTTON_PRIMARY = 1 << 0,
@@ -703,7 +703,7 @@ namespace NScript.AndroidBot
      * Constants that identify tool types.
      * Refer to the documentation on the MotionEvent class for descriptions of each tool type.
      */
-    enum android_motionevent_tool_type
+    public enum AndroidMotionEventToolType
     {
         /** unknown */
         AMOTION_EVENT_TOOL_TYPE_UNKNOWN = 0,
@@ -723,7 +723,7 @@ namespace NScript.AndroidBot
      * Refer to the documentation on android.view.InputDevice for more details about input sources
      * and their correct interpretation.
      */
-    enum android_input_source_class
+    public enum AndroidInputSourceClass
     {
         /** mask */
         AINPUT_SOURCE_CLASS_MASK = 0x000000ff,
@@ -745,37 +745,37 @@ namespace NScript.AndroidBot
     /**
      * Input sources.
      */
-    enum android_input_source
+    public enum AndroidInputSource
     {
         /** unknown */
         AINPUT_SOURCE_UNKNOWN = 0x00000000,
 
         /** keyboard */
-        AINPUT_SOURCE_KEYBOARD = 0x00000100 | android_input_source_class.AINPUT_SOURCE_CLASS_BUTTON,
+        AINPUT_SOURCE_KEYBOARD = 0x00000100 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_BUTTON,
         /** dpad */
-        AINPUT_SOURCE_DPAD = 0x00000200 | android_input_source_class.AINPUT_SOURCE_CLASS_BUTTON,
+        AINPUT_SOURCE_DPAD = 0x00000200 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_BUTTON,
         /** gamepad */
-        AINPUT_SOURCE_GAMEPAD = 0x00000400 | android_input_source_class.AINPUT_SOURCE_CLASS_BUTTON,
+        AINPUT_SOURCE_GAMEPAD = 0x00000400 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_BUTTON,
         /** touchscreen */
-        AINPUT_SOURCE_TOUCHSCREEN = 0x00001000 | android_input_source_class.AINPUT_SOURCE_CLASS_POINTER,
+        AINPUT_SOURCE_TOUCHSCREEN = 0x00001000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_POINTER,
         /** mouse */
-        AINPUT_SOURCE_MOUSE = 0x00002000 | android_input_source_class.AINPUT_SOURCE_CLASS_POINTER,
+        AINPUT_SOURCE_MOUSE = 0x00002000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_POINTER,
         /** stylus */
-        AINPUT_SOURCE_STYLUS = 0x00004000 | android_input_source_class.AINPUT_SOURCE_CLASS_POINTER,
+        AINPUT_SOURCE_STYLUS = 0x00004000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_POINTER,
         /** bluetooth stylus */
         AINPUT_SOURCE_BLUETOOTH_STYLUS = 0x00008000 | AINPUT_SOURCE_STYLUS,
         /** trackball */
-        AINPUT_SOURCE_TRACKBALL = 0x00010000 | android_input_source_class.AINPUT_SOURCE_CLASS_NAVIGATION,
+        AINPUT_SOURCE_TRACKBALL = 0x00010000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_NAVIGATION,
         /** mouse relative */
-        AINPUT_SOURCE_MOUSE_RELATIVE = 0x00020000 | android_input_source_class.AINPUT_SOURCE_CLASS_NAVIGATION,
+        AINPUT_SOURCE_MOUSE_RELATIVE = 0x00020000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_NAVIGATION,
         /** touchpad */
-        AINPUT_SOURCE_TOUCHPAD = 0x00100000 | android_input_source_class.AINPUT_SOURCE_CLASS_POSITION,
+        AINPUT_SOURCE_TOUCHPAD = 0x00100000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_POSITION,
         /** navigation */
-        AINPUT_SOURCE_TOUCH_NAVIGATION = 0x00200000 | android_input_source_class.AINPUT_SOURCE_CLASS_NONE,
+        AINPUT_SOURCE_TOUCH_NAVIGATION = 0x00200000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_NONE,
         /** joystick */
-        AINPUT_SOURCE_JOYSTICK = 0x01000000 | android_input_source_class.AINPUT_SOURCE_CLASS_JOYSTICK,
+        AINPUT_SOURCE_JOYSTICK = 0x01000000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_JOYSTICK,
         /** rotary encoder */
-        AINPUT_SOURCE_ROTARY_ENCODER = 0x00400000 | android_input_source_class.AINPUT_SOURCE_CLASS_NONE,
+        AINPUT_SOURCE_ROTARY_ENCODER = 0x00400000 | AndroidInputSourceClass.AINPUT_SOURCE_CLASS_NONE,
     };
 
     /**
@@ -783,7 +783,7 @@ namespace NScript.AndroidBot
      *
      * Refer to the documentation on android.view.InputDevice for more details.
      */
-    enum android_keyboard_type
+    public enum AndroidKeyboardType
     {
         /** none */
         AINPUT_KEYBOARD_TYPE_NONE = 0,
@@ -802,25 +802,25 @@ namespace NScript.AndroidBot
      *
      * @deprecated These constants are deprecated. Use {@link AMOTION_EVENT_AXIS AMOTION_EVENT_AXIS_*} constants instead.
      */
-    enum android_motion_range
+    public enum AndroidMotionRange
     {
         /** x */
-        AINPUT_MOTION_RANGE_X = android_motionevent_axis.AMOTION_EVENT_AXIS_X,
+        AINPUT_MOTION_RANGE_X = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_X,
         /** y */
-        AINPUT_MOTION_RANGE_Y = android_motionevent_axis.AMOTION_EVENT_AXIS_Y,
+        AINPUT_MOTION_RANGE_Y = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_Y,
         /** pressure */
-        AINPUT_MOTION_RANGE_PRESSURE = android_motionevent_axis.AMOTION_EVENT_AXIS_PRESSURE,
+        AINPUT_MOTION_RANGE_PRESSURE = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_PRESSURE,
         /** size */
-        AINPUT_MOTION_RANGE_SIZE = android_motionevent_axis.AMOTION_EVENT_AXIS_SIZE,
+        AINPUT_MOTION_RANGE_SIZE = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_SIZE,
         /** touch major */
-        AINPUT_MOTION_RANGE_TOUCH_MAJOR = android_motionevent_axis.AMOTION_EVENT_AXIS_TOUCH_MAJOR,
+        AINPUT_MOTION_RANGE_TOUCH_MAJOR = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_TOUCH_MAJOR,
         /** touch minor */
-        AINPUT_MOTION_RANGE_TOUCH_MINOR = android_motionevent_axis.AMOTION_EVENT_AXIS_TOUCH_MINOR,
+        AINPUT_MOTION_RANGE_TOUCH_MINOR = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_TOUCH_MINOR,
         /** tool major */
-        AINPUT_MOTION_RANGE_TOOL_MAJOR = android_motionevent_axis.AMOTION_EVENT_AXIS_TOOL_MAJOR,
+        AINPUT_MOTION_RANGE_TOOL_MAJOR = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_TOOL_MAJOR,
         /** tool minor */
-        AINPUT_MOTION_RANGE_TOOL_MINOR = android_motionevent_axis.AMOTION_EVENT_AXIS_TOOL_MINOR,
+        AINPUT_MOTION_RANGE_TOOL_MINOR = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_TOOL_MINOR,
         /** orientation */
-        AINPUT_MOTION_RANGE_ORIENTATION = android_motionevent_axis.AMOTION_EVENT_AXIS_ORIENTATION,
+        AINPUT_MOTION_RANGE_ORIENTATION = AndroidMotionEventAxis.AMOTION_EVENT_AXIS_ORIENTATION,
     };
 }

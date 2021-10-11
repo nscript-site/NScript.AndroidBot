@@ -18,8 +18,8 @@ namespace NScript.AndroidBot
             return true;
         }
 
-        public int Width { get; set; }
-        public int Height { get; set; }
+        public int Width { get; internal set; }
+        public int Height { get; internal set; }
 
         public AVPixelFormat PixelFormat { get; set; }
 
@@ -35,14 +35,30 @@ namespace NScript.AndroidBot
             {
                 ImageBgr24 img = new ImageBgr24(Width, Height);
                 WriteToFrame(frame, (Byte*)img.Start, img.Width * 3, AVPixelFormat.AV_PIX_FMT_BGR24, Width, Height);
-                if (Image != null) Image.Dispose();
-                Image = img;
+                lock(syncRoot)
+                {
+                    if (Image != null) Image.Dispose();
+                    Image = img;
+                }
                 OnRender?.Invoke(img);
             }
             return true;
         }
 
         public ImageBgr24 Image { get; set; }
+
+        /// <summary>
+        /// 获得当前帧的图像
+        /// </summary>
+        /// <returns> 当前帧的图像 </returns>
+        public ImageBgr24 GetFrameImage()
+        {
+            lock (syncRoot)
+            {
+                if (Image == null) return null;
+                else return Image.Clone();
+            }
+        }
 
         public unsafe bool WriteToFrame(AVFrame* m_avFrame, byte* frameData, int stride, AVPixelFormat frameFmt, int width, int height)
         {

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
@@ -10,6 +11,31 @@ namespace NScript.AndroidBot
 
     public class BotClient
     {
+        #region Config FFmpeg
+        private static bool IsFFmpegConfigged;
+
+        private static void ConfigFFmpeg()
+        {
+            if (IsFFmpegConfigged == true) return;
+            String[] searchPaths = { "./lib", "./ffmpeg", "./lib/ffmpeg", "c://lib/ffmpeg" };
+            foreach (var path in searchPaths)
+            {
+                if (ConfigFFmpeg(path) != null) break;
+            }
+            IsFFmpegConfigged = true;
+        }
+
+        private static String ConfigFFmpeg(String dirPath)
+        {
+            DirectoryInfo dirInfo = new DirectoryInfo(dirPath);
+            if (dirInfo.Exists == false) return null;
+            FileInfo[] files = dirInfo.GetFiles("avcodec*.dll");
+            if (files == null || files.Length == 0) return null;
+            FFmpeg.AutoGen.ffmpeg.RootPath = dirInfo.FullName;
+            return dirInfo.FullName;
+        } 
+        #endregion
+
         private Server Server { get; set; }
         private Stream Stream { get; set; }
         private Decoder Decoder { get; set; }
@@ -30,7 +56,7 @@ namespace NScript.AndroidBot
 
         public void Run()
         {
-            FFmpeg.AutoGen.ffmpeg.RootPath = @"C:\Lib\ffmpeg";
+            ConfigFFmpeg();
 
             BotOptions options = Options;
             if (options == null) options = new BotOptions();

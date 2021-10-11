@@ -29,7 +29,7 @@ namespace NScript.AndroidBot
     /**
      * Key codes.
      */
-    enum android_keycode
+    public enum AndroidKeycode
     {
         /** Unknown key code. */
         AKEYCODE_UNKNOWN = 0,
@@ -748,5 +748,4 @@ namespace NScript.AndroidBot
         /** all apps */
         AKEYCODE_ALL_APPS = 284
     };
-
 }

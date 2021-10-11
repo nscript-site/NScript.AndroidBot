@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
-    public enum control_msg_type
+    public enum ControlMsgType
     {
         CONTROL_MSG_TYPE_INJECT_KEYCODE,
         CONTROL_MSG_TYPE_INJECT_TEXT,
@@ -22,32 +22,32 @@ namespace NScript.AndroidBot
         CONTROL_MSG_TYPE_ROTATE_DEVICE,
     };
 
-    public enum screen_power_mode
+    public enum ScreenPowerMode
     {
         // see <https://android.googlesource.com/platform/frameworks/base.git/+/pie-release-2/core/java/android/view/SurfaceControl.java#305>
         SCREEN_POWER_MODE_OFF = 0,
         SCREEN_POWER_MODE_NORMAL = 2,
     };
 
-    public struct size
+    public struct Size
     {
-        public UInt16 width;
-        public UInt16 height;
+        public UInt16 Width;
+        public UInt16 Height;
     };
 
-    public struct point
+    public struct Point
     {
-        public Int32 x;
-        public Int32 y;
+        public Int32 X;
+        public Int32 Y;
     };
 
-    public struct position
+    public struct Position
     {
         // The video screen size may be different from the real device screen size,
         // so store to which size the absolute position apply, to scale it
         // accordingly.
-        public size screen_size;
-        public point point;
+        public Size ScreenSize;
+        public Point Point;
     };
 
     public class Labels
@@ -111,12 +111,12 @@ namespace NScript.AndroidBot
             buffer_write32be(&buf[4], (UInt32)value);
         }
 
-        internal static void write_position(byte* buf, ref position position)
+        internal static void write_position(byte* buf, ref Position position)
         {
-            buffer_write32be(&buf[0], (uint)position.point.x);
-            buffer_write32be(&buf[4], (uint)position.point.y);
-            buffer_write16be(&buf[8], position.screen_size.width);
-            buffer_write16be(&buf[10], position.screen_size.height);
+            buffer_write32be(&buf[0], (uint)position.Point.X);
+            buffer_write32be(&buf[4], (uint)position.Point.Y);
+            buffer_write16be(&buf[8], position.ScreenSize.Width);
+            buffer_write16be(&buf[10], position.ScreenSize.Height);
         }
 
         // write length (2 bytes) + string (non nul-terminated)
@@ -144,8 +144,8 @@ namespace NScript.AndroidBot
             return (UInt16)u;
         }
 
-        public control_msg_type MsgType { get; private set; }
-        public ControlMsg(control_msg_type msgType) {
+        public ControlMsgType MsgType { get; private set; }
+        public ControlMsg(ControlMsgType msgType) {
             this.MsgType = msgType;
         }
         public int Serialize(Byte* buf)
@@ -159,7 +159,7 @@ namespace NScript.AndroidBot
 
     public unsafe class SimpleControlMsg : ControlMsg
     {
-        public SimpleControlMsg(control_msg_type msgType) : base(msgType) { }
+        public SimpleControlMsg(ControlMsgType msgType) : base(msgType) { }
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
@@ -169,34 +169,34 @@ namespace NScript.AndroidBot
 
     public unsafe class InjectKeycodeMsg : ControlMsg
     {
-        android_keyevent_action action;
-        android_keycode keycode;
-        UInt32 repeat;
-        android_metastate metastate;
+        public AndroidKeyeventAction Action;
+        public AndroidKeycode Keycode;
+        public UInt32 Repeat;
+        public AndroidMetastate Metastate;
 
-        public InjectKeycodeMsg() : base(control_msg_type.CONTROL_MSG_TYPE_INJECT_KEYCODE) { }
+        public InjectKeycodeMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_KEYCODE) { }
 
         protected override int SerializePayloads(Byte* buf)
         {
-            buf[1] = (byte)action;
-            buffer_write32be(&buf[2], (UInt32)keycode);
-            buffer_write32be(&buf[6], repeat);
-            buffer_write32be(&buf[10], (UInt32)metastate);
+            buf[1] = (byte)Action;
+            buffer_write32be(&buf[2], (UInt32)Keycode);
+            buffer_write32be(&buf[6], Repeat);
+            buffer_write32be(&buf[10], (UInt32)Metastate);
             return 14;
         }
     }
 
     public class InjectTextMsg : ControlMsg
     {
-        public string text;
+        public string Text;
 
-        public InjectTextMsg() : base(control_msg_type.CONTROL_MSG_TYPE_INJECT_TEXT) { }
+        public InjectTextMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_TEXT) { }
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
             const int CONTROL_MSG_INJECT_TEXT_MAX_LENGTH = 300;
             int len =
-                write_string(text,
+                write_string(Text,
                              CONTROL_MSG_INJECT_TEXT_MAX_LENGTH, &buf[1]);
             return 1 + len;
         }
@@ -204,53 +204,51 @@ namespace NScript.AndroidBot
 
     public class InjectTouchEventMsg : ControlMsg
     {
-        android_motionevent_action action;
-        android_motionevent_buttons buttons;
-        UInt64 pointer_id;
-        position position;
-        float pressure = 0;
+        public AndroidMotionEventAction Action;
+        public AndroidMotionEventButtons Buttons;
+        public UInt64 PointerId;
+        public Position Position;
+        public float Pressure = 0;
 
-        public InjectTouchEventMsg() : base(control_msg_type.CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT) { }
+        public InjectTouchEventMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT) { }
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
-            buf[1] = (byte)action;
-            buffer_write64be(&buf[2], pointer_id);
-            write_position(&buf[10], ref position);
-            UInt16 pressureVal = to_fixed_point_16(pressure);
+            buf[1] = (byte)Action;
+            buffer_write64be(&buf[2], PointerId);
+            write_position(&buf[10], ref Position);
+            UInt16 pressureVal = to_fixed_point_16(Pressure);
             buffer_write16be(&buf[22], pressureVal);
-            buffer_write32be(&buf[24], (uint)buttons);
+            buffer_write32be(&buf[24], (uint)Buttons);
             return 28;
         }
     }
 
     public class InjectScrollEventMsg : ControlMsg
     {
-        public InjectScrollEventMsg() : base(control_msg_type.CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT) { }
+        public InjectScrollEventMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT) { }
 
-        position position;
-        Int32 hscroll;
-        Int32 vscroll;
+        public Position Position;
+        public Int32 HScroll;
+        public Int32 VScroll;
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
-            write_position(&buf[1], ref position);
-            buffer_write32be(&buf[13], (UInt32) hscroll);
-            buffer_write32be(&buf[17], (UInt32)vscroll);
+            write_position(&buf[1], ref Position);
+            buffer_write32be(&buf[13], (UInt32) HScroll);
+            buffer_write32be(&buf[17], (UInt32)VScroll);
             return 21;
-
         }
     }
 
     public class BackOrScreenOnMsg : ControlMsg
     {
-        public BackOrScreenOnMsg() : base(control_msg_type.CONTROL_MSG_TYPE_BACK_OR_SCREEN_ON) { }
-        android_keyevent_action action; // action for the BACK key
+        public BackOrScreenOnMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_BACK_OR_SCREEN_ON) { }
+        public AndroidKeyeventAction Action; // action for the BACK key
                                         // screen may only be turned on on ACTION_DOWN
-
         protected override unsafe int SerializePayloads(byte* buf)
         {
-            buf[1] = (byte)action;
+            buf[1] = (byte)Action;
             return 2;
         }
     }
@@ -259,7 +257,7 @@ namespace NScript.AndroidBot
     {
         public string Text { get; private set; } // owned, to be freed by free()
         public bool IsPaste { get; private set; }
-        public SetClipboardMsg(String text, bool paste) : base(control_msg_type.CONTROL_MSG_TYPE_SET_CLIPBOARD) { this.Text = text; this.IsPaste = paste; }
+        public SetClipboardMsg(String text, bool paste) : base(ControlMsgType.CONTROL_MSG_TYPE_SET_CLIPBOARD) { this.Text = text; this.IsPaste = paste; }
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
@@ -273,37 +271,37 @@ namespace NScript.AndroidBot
 
     public class SetScreenPowerModeMsg : ControlMsg
     {
-        screen_power_mode mode;
-        public SetScreenPowerModeMsg() : base(control_msg_type.CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE) { }
+        public ScreenPowerMode Mode;
+        public SetScreenPowerModeMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE) { }
         protected override unsafe int SerializePayloads(byte* buf)
         {
-            buf[1] = (byte)mode;
+            buf[1] = (byte)Mode;
             return 2;
         }
     }
 
     public class ExpandNotificationPanelMsg:SimpleControlMsg
     {
-        public ExpandNotificationPanelMsg() : base(control_msg_type.CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL) { }
+        public ExpandNotificationPanelMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_EXPAND_NOTIFICATION_PANEL) { }
     }
 
     public class ExpandSettingPanelMsg : SimpleControlMsg
     {
-        public ExpandSettingPanelMsg() : base(control_msg_type.CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL) { }
+        public ExpandSettingPanelMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_EXPAND_SETTINGS_PANEL) { }
     }
 
     public class CollapsePanelsMsg : SimpleControlMsg
     {
-        public CollapsePanelsMsg() : base(control_msg_type.CONTROL_MSG_TYPE_COLLAPSE_PANELS) { }
+        public CollapsePanelsMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_COLLAPSE_PANELS) { }
     }
 
     public class GetClipboardMsg : SimpleControlMsg
     {
-        public GetClipboardMsg() : base(control_msg_type.CONTROL_MSG_TYPE_GET_CLIPBOARD) { }
+        public GetClipboardMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_GET_CLIPBOARD) { }
     }
 
     public class RotateDeviceMsg : SimpleControlMsg
     {
-        public RotateDeviceMsg() : base(control_msg_type.CONTROL_MSG_TYPE_ROTATE_DEVICE) { }
+        public RotateDeviceMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_ROTATE_DEVICE) { }
     }
 }
