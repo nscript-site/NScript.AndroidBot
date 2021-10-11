@@ -32,9 +32,10 @@ namespace NScript.AndroidBot.WpfUI
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             Client = new BotClient();
-            Client.OnMsg = OnMsg;
-            Client.OnRender = OnRender;
-            Client.Run();
+            Client.Options.MaxSize = 1024;  // 修改最大画面
+            Client.OnMsg = OnMsg;           // 监听程序
+            Client.OnRender = OnRender;     // 如果不需要显示画面，可以不设置 OnRender
+            Client.Run();                   // 启动 BotClient
         }
 
         private void OnMsg(String msg)
@@ -75,7 +76,23 @@ namespace NScript.AndroidBot.WpfUI
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             SetClipboardMsg msg = new SetClipboardMsg("Hello!", false);
-            this.Client.Push(msg);
+            Client.Push(msg);
+        }
+
+        private void ButtonSnap_Click(object sender, RoutedEventArgs e)
+        {
+            var img = Client.GetFameImage();
+            if(img == null)
+            {
+                MessageBox.Show("没有截取到手机画面");
+            }
+            else
+            {
+                String fileName = DateTime.Now.ToFileTimeUtc().ToString() + ".png";
+                System.IO.FileInfo fileInfo = new System.IO.FileInfo(fileName);
+                img.Save(fileName);
+                MessageBox.Show("截图保存在: " + fileInfo.FullName);
+            }
         }
     }
 }

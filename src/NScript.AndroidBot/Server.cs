@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
-    public struct ScPortRange
+    public struct PortRange
     {
         public UInt16 first;
         public UInt16 last;
@@ -28,7 +28,7 @@ namespace NScript.AndroidBot
         public String crop;
         public String codec_options;
         public String encoder_name;
-        public ScPortRange port_range = new ScPortRange { first = 27183, last = 27199 };
+        public PortRange port_range = new PortRange { first = 27183, last = 27199 };
         public UInt16 max_size;
         public UInt32 bit_rate = 8000000;
         public UInt16 max_fps;
@@ -157,7 +157,7 @@ namespace NScript.AndroidBot
             OnMsg?.Invoke(msg);
         }
 
-        public bool enable_tunnel_reverse_any_port(ScPortRange port_range)
+        public bool enable_tunnel_reverse_any_port(PortRange port_range)
         {
             UInt16 port = port_range.first;
             for (; ; )
@@ -207,7 +207,7 @@ namespace NScript.AndroidBot
             }
         }
 
-        public bool enable_tunnel_forward_any_port(ScPortRange port_range)
+        public bool enable_tunnel_forward_any_port(PortRange port_range)
         {
             this.tunnel_forward = true;
             UInt16 port = port_range.first;
@@ -239,7 +239,7 @@ namespace NScript.AndroidBot
             }
         }
 
-        public bool enable_tunnel_any_port(ScPortRange port_range, bool force_adb_forward)
+        public bool enable_tunnel_any_port(PortRange port_range, bool force_adb_forward)
         {
             if (!force_adb_forward)
             {

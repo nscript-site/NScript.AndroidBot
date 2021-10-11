@@ -42,18 +42,40 @@ namespace NScript.AndroidBot
         private FrameSink FrameSink { get; set; }
         private Controller Controller { get; set; }
 
+        /// <summary>
+        /// Bot 选项
+        /// </summary>
         public BotOptions Options { get; set; } = new BotOptions();
 
+        /// <summary>
+        /// 显示 Bot 相关信息
+        /// </summary>
         public Action<String> OnMsg { get; set; }
 
+        /// <summary>
+        /// 显示画面的回调函数
+        /// </summary>
         public Action<ImageBgr24> OnRender { get; set; }
 
+        /// <summary>
+        /// 获取当前画面截图
+        /// </summary>
+        /// <returns></returns>
+        public ImageBgr24 GetFameImage() { return FrameSink?.GetFrameImage(); }
+
+        /// <summary>
+        /// 向 Bot 发送消息
+        /// </summary>
+        /// <param name="msg"></param>
         public void Push(ControlMsg msg)
         {
             if (msg == null) return;
             Controller?.Push(msg);
         }
 
+        /// <summary>
+        /// 启动 Bot 运行
+        /// </summary>
         public void Run()
         {
             ConfigFFmpeg();
