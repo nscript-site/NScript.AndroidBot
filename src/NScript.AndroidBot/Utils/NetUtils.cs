@@ -46,13 +46,20 @@ namespace NScript.AndroidBot
 
         public static int RecvAll(Socket socket, Byte[] buff)
         {
-            int len = socket.Receive(buff, buff.Length, SocketFlags.None);
-            return len;
+            return RecvAll(socket, new Span<Byte>(buff));
         }
 
         public static int RecvAll(Socket socket, Span<Byte> buff)
         {
-            int len = socket.Receive(buff, SocketFlags.None);
+            Span<Byte> data = buff;
+
+            int len = 0;
+            while(len < data.Length)
+            {
+                len += socket.Receive(data, SocketFlags.None);
+                data = buff.Slice(len);
+            }
+
             return len;
         }
 

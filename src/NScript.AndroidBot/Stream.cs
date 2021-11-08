@@ -23,11 +23,6 @@ namespace NScript.AndroidBot
 
         public String Name { get; set; } = String.Empty;
 
-        public Stream(Socket socket)
-        {
-            this.Socket = socket;
-        }
-
         public void Cbs(void* userData)
         {
             OnCbs?.Invoke((IntPtr)userData);
@@ -317,8 +312,7 @@ namespace NScript.AndroidBot
                 bool ok = this.stream_recv_packet(packet);
                 if (!ok)
                 {
-                    // end of stream
-                    break;
+                    break;  // eof
                 }
 
                 ok = this.stream_push_packet(packet);
@@ -355,8 +349,10 @@ namespace NScript.AndroidBot
 
         public Task Task { get; private set; }
 
-        public bool Start() {
-            //LOGD("Starting stream thread");
+        public bool Receive(Socket socket) {
+            if (socket == null) return false;
+
+            this.Socket = socket;
             Task = new Task(() =>
             {
                 RunBackgroundWork();

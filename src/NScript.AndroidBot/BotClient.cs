@@ -101,10 +101,13 @@ namespace NScript.AndroidBot
             this.FrameSink.Height = this.Server.FrameSize.Height;
             this.FrameSink.OnRender = this.OnRender;
             this.Decoder.AddSink(this.FrameSink);
-            this.Stream = new Stream(this.Server.VideoSocket);
+            this.Stream = new Stream();
             this.Stream.OnMsg = this.OnMsg;
             this.Stream.AddSink(this.Decoder);
-            this.Stream.Start();
+            this.Stream.Receive(this.Server.VideoSocket);
+            this.Server.OnVideoSocketConnected = () => {
+                this.Stream.Receive(this.Server.VideoSocket);
+            };
             this.Controller = new Controller(this.Server.ControlSocket);
             this.Controller.Start();
         }

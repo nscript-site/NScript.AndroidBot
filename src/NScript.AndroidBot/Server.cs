@@ -23,6 +23,12 @@ namespace NScript.AndroidBot
                 PortsUsed.Add(port);
         }
 
+        public static void SetPortUnused(UInt16 port)
+        {
+            lock (PortsUsed)
+                PortsUsed.Remove(port);
+        }
+
         public const String SCRCPY_SOCKET_NAME = "scrcpy";
         public const String SCRCPY_SERVER_FILENAME = "scrcpy-server";
         public const String DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
@@ -43,6 +49,8 @@ namespace NScript.AndroidBot
         public System.Drawing.Size FrameSize { get; private set; }
 
         public Action<String> OnMsg { get; set; }
+
+        public Action OnVideoSocketConnected { get; set; }
 
         private AtxAgentServer AtxAgent { get; set; }
 
@@ -66,6 +74,7 @@ namespace NScript.AndroidBot
 
         public bool DisableTunnelForward(String serial, UInt16 local_port)
         {
+            SetPortUnused(local_port);
             ProcessSession process = AdbUtils.adb_forward_remove(serial, local_port);
             process.OnMsg = process.OnErr = this.OnMsg;
             return AdbUtils.process_check_success(process, "adb forward --remove", true);
@@ -110,6 +119,30 @@ namespace NScript.AndroidBot
         {
             String ui = this.AtxAgent.DumpUI();
             return ui;
+        }
+
+        internal static bool IsConnected(Socket socket)
+        {
+            if (socket == null) return false;
+            if (!socket.Poll(100, SelectMode.SelectRead) || socket.Available > 0) return true;
+            else return false;
+        }
+
+        private void RunDaemon()
+        {
+            Task.Run(() => {
+                while(true)
+                {
+                    System.Threading.Thread.Sleep(1000);
+                    bool isVideoSocketConnected = IsConnected(VideoSocket);
+                    bool isControlSocketConnected = IsConnected(ControlSocket);
+                    if(isVideoSocketConnected == false || isControlSocketConnected == false)
+                    {
+                        OnMsg?.Invoke($"[{Serial}][Daemon]: VideoSocket-{isVideoSocketConnected},ControlSocket-{isControlSocketConnected}");
+                        ConnectScrcpy();
+                    }
+                }
+            });
         }
 
         public bool EnableUIAutomatorForward(UInt16 portStart)
@@ -206,14 +239,14 @@ namespace NScript.AndroidBot
             return null;
         }
 
+        private ServerParams StartServerParams;
+
         public bool Start(ServerParams serverParams)
         {
+            StartServerParams = serverParams;
             this.Serial = serverParams.serial;
 
-            if (!this.PushScrcpyServerToDevice())
-                return false;
-
-            if (!this.EnableScrcpyForward(serverParams.port_start)) return false;
+            ConnectScrcpy();
 
             #region 启动 AtxAgent
 
@@ -244,44 +277,69 @@ namespace NScript.AndroidBot
 
             #endregion
 
-            // server will connect to our server socket
-            this.ScrcpyServer = this.RunScrcpyServer(serverParams);
-            this.ScrcpyServer.OnMsg = this.ScrcpyServer.OnErr = this.OnMsg;
-            this.ScrcpyServer.RunAtBackground();
-
-            ConnectScrcpySockets();
+            RunDaemon();
 
             return true;
         }
 
+        private void ConnectScrcpy()
+        {
+            lock (this)
+            {
+                this.StopScrcpySockets();
+                this.PushScrcpyServerToDevice();
+
+                this.EnableScrcpyForward(StartServerParams.port_start);
+
+                this.ScrcpyServer = this.RunScrcpyServer(StartServerParams);
+                this.ScrcpyServer.OnMsg = this.ScrcpyServer.OnErr = this.OnMsg;
+                this.ScrcpyServer.RunAtBackground();
+
+                try
+                {
+                    ConnectScrcpySockets();
+                }
+                catch(Exception ex)
+                {
+                    this.PushScrcpyServerToDevice();
+
+                    this.EnableScrcpyForward(StartServerParams.port_start);
+
+                    this.ScrcpyServer = this.RunScrcpyServer(StartServerParams);
+                    this.ScrcpyServer.OnMsg = this.ScrcpyServer.OnErr = this.OnMsg;
+                    this.ScrcpyServer.RunAtBackground();
+                    ConnectScrcpySockets();
+                }
+            }
+        }
+
         private void ConnectScrcpySockets()  // server_connect_to()  
         {
-            UInt32 attempts = 100;
+            UInt32 attempts = 1000;
             UInt32 delay = 100; // ms
             this.VideoSocket = this.ConnectToServer(LocalServerPort, attempts, delay);
             this.ControlSocket = NetUtils.Connect(IPV4_LOCALHOST, this.LocalServerPort);
 
-            // The sockets will be closed on stop if device_read_info() fails
-            (string deviceName, int width, int height) = ReadDeviceInfo(this.VideoSocket);
-            this.DeviceName = deviceName;
-            this.FrameSize = new System.Drawing.Size(width, height);
+            if(this.VideoSocket != null)
+            {
+                // The sockets will be closed on stop if device_read_info() fails
+                (string deviceName, int width, int height) = ReadDeviceInfo(this.VideoSocket);
+                this.DeviceName = deviceName;
+                this.FrameSize = new System.Drawing.Size(width, height);
+
+                OnVideoSocketConnected?.Invoke();
+            }
         }
 
         public void StopScrcpySockets()
         {
-            if (this.VideoSocket != null)
-            {
-                this.VideoSocket.Close();
-            }
+            //this.VideoSocket?.Close();
 
-            if (this.ControlSocket != null)
-            {
-                this.ControlSocket.Close();
-            }
+            //this.ControlSocket?.Close();
 
             this.DisableTunnelForward(Serial, LocalServerPort);
 
-            this.ScrcpyServer.Kill();
+            this.ScrcpyServer?.Kill();
         }
 
         public (string, int, int) ReadDeviceInfo(Socket socket)
