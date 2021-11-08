@@ -43,6 +43,7 @@ namespace NScript.AndroidBot
         public bool show_touches;
         public bool stay_awake;
         public bool power_off_on_close;
+        public bool Display;
     }
 
     public class BotOptions
@@ -73,7 +74,7 @@ namespace NScript.AndroidBot
         public bool FullScreen;
         public bool AlwaysOnTop;
         public bool Control = true;
-        public bool Display;
+        public bool Display = true;
         public bool TurnScreenOff;
         public bool PreferText;
         public bool WindowBorderless;
@@ -98,6 +99,7 @@ namespace NScript.AndroidBot
             sp.lock_video_orientation = (byte)this.LockVideoOrientation;
             sp.control = this.Control;
             sp.display_id = this.DisplayId;
+            sp.Display = this.Display;
             sp.show_touches = this.ShowTouches;
             sp.stay_awake = this.StayAwake;
             sp.codec_options = this.CodecOptions;

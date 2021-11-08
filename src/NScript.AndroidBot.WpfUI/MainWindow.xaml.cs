@@ -33,7 +33,8 @@ namespace NScript.AndroidBot.WpfUI
         {
             Task.Run(() => {
                 Client = new BotClient();
-                Client.Options.MaxSize = 1024;  // 修改最大画面
+                // Client.Options.Display = false; // 不显示画面
+                Client.Options.MaxSize = 640;   // 修改最大画面
                 Client.OnMsg = OnMsg;           // 监听程序
                 Client.OnRender = OnRender;     // 如果不需要显示画面，可以不设置 OnRender
                 Client.Run();                   // 启动 BotClient

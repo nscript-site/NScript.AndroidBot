@@ -96,11 +96,14 @@ namespace NScript.AndroidBot
             this.Server.OnMsg = this.OnMsg;
             this.Server.Start(serverParams);
             this.Decoder = new Decoder();
-            this.FrameSink = new FrameSink();
-            this.FrameSink.Width = this.Server.FrameSize.Width;
-            this.FrameSink.Height = this.Server.FrameSize.Height;
-            this.FrameSink.OnRender = this.OnRender;
-            this.Decoder.AddSink(this.FrameSink);
+            if(options.Display == true)
+            {
+                this.FrameSink = new FrameSink();
+                this.FrameSink.Width = this.Server.FrameSize.Width;
+                this.FrameSink.Height = this.Server.FrameSize.Height;
+                this.FrameSink.OnRender = this.OnRender;
+                this.Decoder.AddSink(this.FrameSink);
+            }
             this.Stream = new Stream();
             this.Stream.OnMsg = this.OnMsg;
             this.Stream.AddSink(this.Decoder);

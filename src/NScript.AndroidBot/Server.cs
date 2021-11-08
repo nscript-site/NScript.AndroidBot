@@ -91,11 +91,6 @@ namespace NScript.AndroidBot
             return rtn;
         }
 
-        static Socket ListenOnPort(UInt16 port)
-        {
-            return NetUtils.Listen(IPAddress.Parse("127.0.0.1"), port, 2);
-        }
-
         public void LOGE(String msg)
         {
             OnMsg?.Invoke(msg);
@@ -117,7 +112,17 @@ namespace NScript.AndroidBot
         /// <returns></returns>
         public String DumpUI()
         {
-            String ui = this.AtxAgent.DumpUI();
+            String ui = null;
+            try
+            {
+                ui = this.AtxAgent.DumpUI();
+            }
+            catch(WebException ex)
+            {
+                // 再重联一次
+                this.ConnectAtxAgent();
+                ui = this.AtxAgent.DumpUI();
+            }
             return ui;
         }
 
@@ -145,19 +150,18 @@ namespace NScript.AndroidBot
             });
         }
 
-        public bool EnableUIAutomatorForward(UInt16 portStart)
+        public void CreateAtxAgentServer(UInt16 portStart)
         {
             for(UInt16 port = portStart; port < 62300; port ++)
             {
                 if (EnableTunnelForward(this.Serial, port, 7912))  // Remote Port: 7912
                 {
                     AtxAgent = new AtxAgentServer(port);
-                    return true;
+                    return;
                 }
             }
 
-            LOGE($"Could not forward UIAutomator port");
-            return false;
+            LOGE($"CreateAtxAgentServer failed, could not forward UIAutomator port");
         }
 
         public bool EnableScrcpyForward(UInt16 portStart)
@@ -247,19 +251,26 @@ namespace NScript.AndroidBot
             this.Serial = serverParams.serial;
 
             ConnectScrcpy();
+            ConnectAtxAgent();
+            RunDaemon();
 
-            #region 启动 AtxAgent
+            return true;
+        }
 
+        private void ConnectAtxAgent()
+        {
             // 检查是否安装 AtxAgent
             if (this.IsAtxAgentInstalled() == false)
             {
                 this.InstallAtxAgent();
             }
 
-            if (!this.EnableUIAutomatorForward(serverParams.port_start))
+            if (this.AtxAgent != null)
             {
-                return false;
+                this.DisableTunnelForward(this.Serial, this.AtxAgent.Port);
             }
+            
+            this.CreateAtxAgentServer(this.StartServerParams.port_start);
 
             if (this.AtxAgent.IsRunning() == false)
             {
@@ -271,15 +282,8 @@ namespace NScript.AndroidBot
                     this.InstallAtxAgent();
                 }
 
-                if (this.AtxAgent.WaitRunning(30000) == false)
-                    return false;
+                this.AtxAgent.WaitRunning(30000);
             }
-
-            #endregion
-
-            RunDaemon();
-
-            return true;
         }
 
         private void ConnectScrcpy()

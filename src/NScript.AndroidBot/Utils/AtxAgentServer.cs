@@ -46,6 +46,8 @@ namespace NScript.AndroidBot
             UIAutomatorClient = new RestClient(ServerUrl + "/services/uiautomator");
         }
 
+        public const String NoData = "[NO Data]";
+
         public String DumpUI()
         {
             AtxAgentRequest req = new AtxAgentRequest();
@@ -59,7 +61,7 @@ namespace NScript.AndroidBot
             if (response.ErrorException != null) throw response.ErrorException;
             AtxAgentResult result = JsonConvert.DeserializeObject<AtxAgentResult>(response.Content);
             String str = result == null ? String.Empty : result.result;
-            if (String.IsNullOrEmpty(str)) str = "[NO Data]";
+            if (String.IsNullOrEmpty(str)) str = NoData;
             return str;
         }
 

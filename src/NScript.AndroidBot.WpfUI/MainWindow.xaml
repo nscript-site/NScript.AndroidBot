@@ -7,26 +7,28 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="900" Width="1000" Loaded="Window_Loaded">
     <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300"></ColumnDefinition>
-            <ColumnDefinition></ColumnDefinition>
-        </Grid.ColumnDefinitions>
-        <Grid Grid.Column="0">
-            <Grid.RowDefinitions>
-                <RowDefinition></RowDefinition>
-                <RowDefinition Height="32"></RowDefinition>
-                <RowDefinition Height="200"></RowDefinition>
-            </Grid.RowDefinitions>
-            <Image Grid.Row="0" x:Name="cvs"></Image>
-            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="5" >
-                <Button Width="80" Click="Button_Click">测试剪贴板</Button>
-                <Button Width="80" Click="ButtonSnap_Click" Margin="10,0,0,0">测试截图</Button>
-                <Button Width="80" Click="ButtonGetLayout_Click" Margin="10,0,0,0">获取布局</Button>
-            </StackPanel>
-            <TextBox Grid.Row="2" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>
+        <Grid.RowDefinitions>
+            <RowDefinition></RowDefinition>
+            <RowDefinition Height="32"></RowDefinition>
+            <RowDefinition Height="200"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"></ColumnDefinition>
+                <ColumnDefinition></ColumnDefinition>
+            </Grid.ColumnDefinitions>
+            <Grid Background="LightGray">
+                <Image x:Name="cvs"></Image>
+            </Grid>
+            <Grid Grid.Column="1">
+                <TextBox TextWrapping="WrapWithOverflow" VerticalScrollBarVisibility="Auto" x:Name="tbLayouts"></TextBox>
+            </Grid>
         </Grid>
-        <Grid Grid.Column="1">
-            <TextBox TextWrapping="WrapWithOverflow" VerticalScrollBarVisibility="Auto" x:Name="tbLayouts"></TextBox>
-        </Grid>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="5" >
+            <Button Width="80" Click="Button_Click">测试剪贴板</Button>
+            <Button Width="80" Click="ButtonSnap_Click" Margin="10,0,0,0">测试截图</Button>
+            <Button Width="80" Click="ButtonGetLayout_Click" Margin="10,0,0,0">获取布局</Button>
+        </StackPanel>
+        <TextBox Grid.Row="2" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>
     </Grid>
 </Window>
