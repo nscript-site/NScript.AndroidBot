@@ -77,6 +77,7 @@ namespace NScript.AndroidBot
             int r = NetUtils.RecvAll(Socket, header);
             if (r < HEADER_SIZE)
             {
+                OnMsg?.Invoke($"[{Name}] packet header RecvAll fail");
                 return false;
             }
 
@@ -88,6 +89,7 @@ namespace NScript.AndroidBot
 
             if (ffmpeg.av_new_packet(packet, len) != 0)
             {
+                OnMsg?.Invoke($"[{Name}] could not allocate packet of {len} bytes");
                 throw new BotException("Could not allocate packet");
             }
 
@@ -96,6 +98,7 @@ namespace NScript.AndroidBot
             if (r < 0 || r < len)
             {
                 ffmpeg.av_packet_unref(packet);
+                OnMsg?.Invoke($"[{Name}] packet content of {len} bytes RecvAll fail");
                 return false;
             }
 
@@ -303,6 +306,7 @@ namespace NScript.AndroidBot
             AVPacket* packet = ffmpeg.av_packet_alloc();
             if (packet == null)
             {
+                OnMsg?.Invoke($"[{Name}] could not allocate packet");
                 ex = new BotException("Could not allocate packet");
                 goto finally_close_parser;
             }
@@ -312,6 +316,7 @@ namespace NScript.AndroidBot
                 bool ok = this.stream_recv_packet(packet);
                 if (!ok)
                 {
+                    OnMsg?.Invoke($"[{Name}] video stream eof");
                     break;  // eof
                 }
 
@@ -319,6 +324,7 @@ namespace NScript.AndroidBot
                 ffmpeg.av_packet_unref(packet);
                 if (!ok)
                 {
+                    OnMsg?.Invoke($"[{Name}] cannot process packet");
                     // cannot process packet (error already logged)
                     break;
                 }

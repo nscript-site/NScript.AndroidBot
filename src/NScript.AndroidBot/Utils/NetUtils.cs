@@ -54,7 +54,7 @@ namespace NScript.AndroidBot
             Span<Byte> data = buff;
 
             int len = 0;
-            while(len < data.Length)
+            while(len < buff.Length)
             {
                 len += socket.Receive(data, SocketFlags.None);
                 data = buff.Slice(len);
