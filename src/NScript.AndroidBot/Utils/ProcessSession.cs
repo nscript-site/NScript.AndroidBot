@@ -167,6 +167,7 @@ namespace NScript.AndroidBot
 
             process.OutputDataReceived += new DataReceivedEventHandler(process_OutputDataReceived);
             process.ErrorDataReceived += new DataReceivedEventHandler(process_ErrorDataReceived);
+            
             process.StartInfo = startInfo;
         }
 
@@ -183,9 +184,8 @@ namespace NScript.AndroidBot
             return sb.ToString();
         }
 
-        public bool Run()
+        public String Run()
         {
-            bool rtn = false;
             Process process = _process;
             try
             {
@@ -195,7 +195,7 @@ namespace NScript.AndroidBot
                 process.WaitForExit();
                 process.Close();
                 process.Dispose();
-                rtn = true;
+
                 _process = null;
             }
             catch (Exception e)
@@ -207,7 +207,7 @@ namespace NScript.AndroidBot
                 if (process != null)
                     process.Close();
             }
-            return rtn;
+            return FetchCacheOutputs();
         }
 
         public void Kill()

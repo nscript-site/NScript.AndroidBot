@@ -144,7 +144,7 @@ namespace NScript.AndroidBot
         public bool EnableUIAutomatorForward(String serial, UInt16 localPort, UInt16 remotePort)
         {
             if (IsPortUsed(localPort)) return false;
-            ProcessSession process = AdbUtils.adb_forward(serial, LocalServerPort, remotePort);
+            ProcessSession process = AdbUtils.adb_forward(serial, localPort, remotePort);
             process.OnMsg = process.OnErr = this.OnMsg;
             bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
             if (rtn == true) SetPortUsed(LocalServerPort);
@@ -471,9 +471,29 @@ namespace NScript.AndroidBot
                 return false;
             }
 
+            // 检查是否安装 AtxAgent
+            if (this.IsAtxAgentInstalled() == false)
+            {
+                this.InstallAtxAgent();
+            }
+
             if (!this.EnableUIAutomatorForward(serverParams.UIAutomatorPortRange))
             {
                 return false;
+            }
+
+            if(this.AtxAgent.IsRunning() == false)
+            {
+                StopAtxAgent();
+                StartAtxAgent();
+
+                if(this.AtxAgent.WaitRunning(5000) == false)
+                {
+                    this.InstallAtxAgent();
+                }
+
+                if (this.AtxAgent.WaitRunning(30000) == false)
+                    return false;
             }
 
             // server will connect to our server socket
@@ -596,6 +616,114 @@ namespace NScript.AndroidBot
             }
 
             this.process.Kill();
+        }
+
+        static String __atx_listen_addr = "127.0.0.1:7912";
+
+        //    def _install_uiautomator_apks(self):
+        //    """ use uiautomator 2.0 to run uiautomator test
+        //    通常在连接USB数据线的情况下调用
+        //    """
+        //    self.shell("pm", "uninstall", "com.github.uiautomator")
+        //    self.shell("pm", "uninstall", "com.github.uiautomator.test")
+        //    for filename, url in app_uiautomator_apk_urls() :
+        //        path = self.push_url(url, mode=0o644)
+        //        self.shell("pm", "install", "-r", "-t", path)
+        //        self.logger.info("- %s installed", filename)
+
+        //def _install_jars(self):
+        //    """ use uiautomator 1.0 to run uiautomator test """
+        //    for (name, url) in self.jar_urls:
+        //        self.push_url(url, "/data/local/tmp/" + name, mode=0o644)
+
+        //def _install_atx_agent(self):
+        //    self.logger.info("Install atx-agent %s", __atx_agent_version__)
+        //    self.push_url(self.atx_agent_url, tgz=True, extract_name="atx-agent")
+
+        string atx_agent_path = "/data/local/tmp/atx-agent";
+
+        internal bool IsAtxAgentInstalled()
+        {
+            String rtn = AdbUtils.RunShell(Serial, "du", "-h", atx_agent_path);
+            return rtn.StartsWith("du:") == false;
+        }
+
+        internal void InstallAtxAgent()
+        {
+            this.OnMsg?.Invoke($"[{Serial}] install atx agent");
+
+            InstallUIAutomatorApks();
+
+            StopAtxAgent();
+
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm install -r -t /data/local/tmp/atx-agent");
+            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/atx-agent"));
+
+            StartAtxAgent();
+        }
+
+        internal void InstallUIAutomatorApks()
+        {
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm uninstall com.github.uiautomator");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm uninstall com.github.uiautomator.test");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm install -r -t /data/local/tmp/app-uiautomator.apk");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm install -r -t /data/local/tmp/app-uiautomator-test.apk");
+
+            AdbUtils.RunShell(Serial, "pm", "uninstall", "com.github.uiautomator");
+            AdbUtils.RunShell(Serial, "pm", "uninstall", "com.github.uiautomator.test");
+
+            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/app-uiautomator.apk","0644"));
+            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/app-uiautomator-test.apk", "0644"));
+        }
+
+        internal void StopAtxAgent()
+        {
+            this.OnMsg?.Invoke($"[{Serial}] adb shell {atx_agent_path} server --stop");
+            AdbUtils.RunShell(Serial, atx_agent_path, "server", "--stop");
+        }
+
+        internal void StartAtxAgent()
+        {
+            GrantPermissions();
+            // adb shell /data/local/tmp/atx-agent server --nouia -d --addr 127.0.0.1:7912
+            this.OnMsg?.Invoke($"[{Serial}] adb shell {atx_agent_path} server --nouia -d --addr {__atx_listen_addr}");
+            AdbUtils.RunShell(Serial, atx_agent_path, "server", "--nouia", "-d", "--addr", __atx_listen_addr);
+        }
+
+        internal void GrantPermissions()
+        {
+            String[] permissions = 
+                {
+                "android.permission.SYSTEM_ALERT_WINDOW",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.READ_PHONE_STATE"
+                };
+
+            foreach(var permission in permissions)
+            {
+                this.OnMsg?.Invoke($"[{Serial}] adb shell pm grant com.github.uiautomator {permission}");
+                AdbUtils.RunShell(Serial, "pm", "grant", "com.github.uiautomator", permission);
+            }
+        }
+
+        internal void StartUiAutomator()
+        {
+            // adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.github.uiautomator/.ToastActivity
+
+            //adb shell am instrument -w - r - e debug false - e class com.github.uiautomator.stub.Stub com.github.uiautomator.test/android.support.test.runner.AndroidJUnitRunner
+
+                           //AdbUtils.RunShell(Serial,""
+        }
+
+        internal String Push(String filePath, String permission = "0755", String dest = null)
+        {
+            System.IO.FileInfo fileInfo = new System.IO.FileInfo(filePath);
+            if (dest == null) dest = "/data/local/tmp/" + fileInfo.Name;
+            this.OnMsg?.Invoke($"[{Serial}] adb push {filePath} {dest}");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell chmod {permission} {dest}");
+            AdbUtils.Run(AdbUtils.adb_push(Serial, filePath, dest));
+            AdbUtils.RunShell(Serial, "chmod", permission, dest);
+            return dest;
         }
     }
 }

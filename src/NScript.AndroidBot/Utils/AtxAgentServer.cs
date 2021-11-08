@@ -24,18 +24,26 @@ namespace NScript.AndroidBot
         public String result { get; set; }
     }
 
+    public class UIAutomatorStatus
+    {
+        public bool running { get; set; }
+        public bool success { get; set; }
+    }
+
     public class AtxAgentServer
     {
         public UInt16 Port { get; private set; }
         
         private String ServerUrl;
-        private RestClient Client;
+        private RestClient RpcClient;
+        private RestClient UIAutomatorClient;
 
         public AtxAgentServer(UInt16 port)
         {
             this.Port = port;
-            ServerUrl = "http://127.0.0.1:" + port + "/jsonrpc/0";
-            Client = new RestClient("http://127.0.0.1:8000/jsonrpc/0");
+            ServerUrl = "http://127.0.0.1:" + port;
+            RpcClient = new RestClient(ServerUrl + "/jsonrpc/0");
+            UIAutomatorClient = new RestClient(ServerUrl + "/services/uiautomator");
         }
 
         public String DumpUI()
@@ -47,10 +55,66 @@ namespace NScript.AndroidBot
             request.RequestFormat = DataFormat.Json;
             request.AddHeader("Content-Type", "application/json");
             request.AddBody(reqStr);
-            var response = Client.Execute(request);
+            var response = RpcClient.Execute(request);
             if (response.ErrorException != null) throw response.ErrorException;
             AtxAgentResult result = JsonConvert.DeserializeObject<AtxAgentResult>(response.Content);
-            return result.result;
+            String str = result == null ? String.Empty : result.result;
+            if (String.IsNullOrEmpty(str)) str = "[NO Data]";
+            return str;
+        }
+
+        public bool Start()
+        {
+            RestRequest request = new RestRequest(Method.POST);
+            var response = UIAutomatorClient.Execute(request);
+            return response.ErrorException == null;
+        }
+
+        public void Stop()
+        {
+            RestRequest request = new RestRequest(Method.POST);
+            var response = UIAutomatorClient.Execute(request);
+            Console.WriteLine(response.Content);
+        }
+
+        public bool IsRunning()
+        {
+            try
+            {
+                RestRequest request = new RestRequest(Method.GET);
+                var response = UIAutomatorClient.Execute(request);
+                if (response.ErrorException != null) throw response.ErrorException;
+                Console.WriteLine(response.Content);
+                UIAutomatorStatus status = JsonConvert.DeserializeObject<UIAutomatorStatus>(response.Content);
+                return status.running;
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return false;
+        }
+
+        public bool WaitRunning(int timeOutMiniSeconds)
+        {
+            DateTime start = DateTime.Now;
+            while(true)
+            {
+                try
+                {
+                    bool isRunning = IsRunning();
+                    if (isRunning == true) return true;
+                    else
+                        Start();
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+                TimeSpan ts = DateTime.Now - start;
+                if (ts.TotalMilliseconds > timeOutMiniSeconds) return false;
+                System.Threading.Thread.Sleep(3000);
+            }
         }
     }
 }

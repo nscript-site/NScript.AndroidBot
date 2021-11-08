@@ -19,9 +19,18 @@ namespace NScript.AndroidBot
         /// <returns></returns>
         public static bool process_check_success(ProcessSession proc, String name, bool close)
         {
-            bool result = proc.Run();
-            if (result == close) proc.OnMsg?.Invoke( $"[{name}] ok" );
-            return result;
+            String result = proc.Run();
+            if (result != null)
+            {
+                result = result.Trim();
+                Console.WriteLine(result);
+            }
+            bool isOK = !(result!= null && result.StartsWith("adb.exe: error:"));
+            if(isOK)
+                proc.OnMsg?.Invoke( $"[{name}] ok" );
+            else
+                proc.OnMsg?.Invoke( $"[{name}] fail: " + result );
+            return isOK;
         }
 
         public static String get_adb_command()
@@ -109,6 +118,13 @@ namespace NScript.AndroidBot
             return adb_execute(serial, cmds);
         }
 
+        public static String Run(ProcessSession session)
+        {
+            String result = session.Run();
+            Console.WriteLine(result);
+            return result;
+        }
+
         public static ProcessSession adb_install(String serial, String local)
         {
             String[] cmds = { "install", "-r", EncodePath(local) };
@@ -118,6 +134,16 @@ namespace NScript.AndroidBot
         public static String log_level_to_server_string(LogLevel level)
         {
             return level.ToString().ToLower();
+        }
+
+        public static String RunShell(String serial,  params String[] args)
+        {
+            List<String> cmds = new List<string>();
+            cmds.Add("shell");
+            if(args!= null) cmds.AddRange(args);
+            String result = adb_execute(serial, cmds.ToArray()).Run();
+            Console.WriteLine(result);
+            return result;
         }
     }
 }

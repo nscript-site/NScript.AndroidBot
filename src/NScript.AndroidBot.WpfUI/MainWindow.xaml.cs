@@ -31,11 +31,13 @@ namespace NScript.AndroidBot.WpfUI
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            Client = new BotClient();
-            Client.Options.MaxSize = 1024;  // 修改最大画面
-            Client.OnMsg = OnMsg;           // 监听程序
-            Client.OnRender = OnRender;     // 如果不需要显示画面，可以不设置 OnRender
-            Client.Run();                   // 启动 BotClient
+            Task.Run(() => {
+                Client = new BotClient();
+                Client.Options.MaxSize = 1024;  // 修改最大画面
+                Client.OnMsg = OnMsg;           // 监听程序
+                Client.OnRender = OnRender;     // 如果不需要显示画面，可以不设置 OnRender
+                Client.Run();                   // 启动 BotClient
+            });
         }
 
         private void OnMsg(String msg)
@@ -97,17 +99,21 @@ namespace NScript.AndroidBot.WpfUI
 
         private void ButtonGetLayout_Click(object sender, RoutedEventArgs e)
         {
-            String msg = String.Empty;
-            try
-            {
-                msg = Client.DumpUI();
-            }
-            catch(Exception ex)
-            {
-                msg = ex.Message;
-            }
-            this.Dispatcher.Invoke(() => {
-                this.tbLayouts.Text = msg;
+            this.tbLayouts.Text = String.Empty;
+
+            Task.Run(() => {
+                String msg = String.Empty;
+                try
+                {
+                    msg = Client.DumpUI();
+                }
+                catch (Exception ex)
+                {
+                    msg = ex.Message;
+                }
+                this.Dispatcher.Invoke(() => {
+                    this.tbLayouts.Text = msg;
+                });
             });
         }
     }
