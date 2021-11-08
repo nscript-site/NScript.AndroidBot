@@ -66,6 +66,12 @@ namespace NScript.AndroidBot
             return adb_execute(serial, cmds);
         }
 
+        public static ProcessSession adb_forward(String serial, UInt16 localPort, UInt16 remotePort)
+        {
+            String[] cmds = { "forward", $"tcp:{localPort}", $"tcp:{remotePort}" };
+            return adb_execute(serial, cmds);
+        }
+
         public static ProcessSession adb_forward_remove(String serial, UInt16 local_port)
         {
             String[] cmds = { "forward", "--remove", $"tcp:{local_port}"};

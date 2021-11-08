@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -28,7 +29,8 @@ namespace NScript.AndroidBot
         public String crop;
         public String codec_options;
         public String encoder_name;
-        public PortRange port_range = new PortRange { first = 27183, last = 27199 };
+        public PortRange port_range = new PortRange { first = 27183, last = 28199 };
+        public PortRange UIAutomatorPortRange = new PortRange { first = 29183, last = 39199 };
         public UInt16 max_size;
         public UInt32 bit_rate = 8000000;
         public UInt16 max_fps;
@@ -39,10 +41,25 @@ namespace NScript.AndroidBot
         public bool stay_awake;
         public bool force_adb_forward;
         public bool power_off_on_close;
+
     }
 
     public class Server
     {
+        private static HashSet<UInt16> PortsUsed { get; set; } = new HashSet<ushort>();
+
+        public static bool IsPortUsed(UInt16 port)
+        {
+            lock (PortsUsed)
+                return PortsUsed.Contains(port);
+        }
+
+        public static void SetPortUsed(UInt16 port)
+        {
+            lock (PortsUsed)
+                PortsUsed.Add(port);
+        }
+
         public const String SOCKET_NAME = "scrcpy";
         public const String SERVER_FILENAME = "scrcpy-server";
         public const String DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
@@ -62,7 +79,7 @@ namespace NScript.AndroidBot
         public Socket server_socket; // only used if !tunnel_forward
         public Socket video_socket;
         public Socket control_socket;
-        public UInt16 local_port; // selected from port_range
+        public UInt16 LocalServerPort; // selected from port_range
         public bool tunnel_enabled;
         public bool tunnel_forward; // use "adb forward" instead of "adb reverse"
 
@@ -70,6 +87,8 @@ namespace NScript.AndroidBot
         public System.Drawing.Size FrameSize { get; private set; }
 
         public Action<String> OnMsg { get; set; }
+
+        private AtxAgentServer AtxAgent { get; set; }
 
         public string get_server_path()
         {
@@ -97,9 +116,12 @@ namespace NScript.AndroidBot
 
         public bool enable_tunnel_reverse(String serial, UInt16 local_port)
         {
+            if (IsPortUsed(local_port)) return false;
             ProcessSession process = AdbUtils.adb_reverse(serial, SOCKET_NAME, local_port);
             process.OnMsg = process.OnErr = this.OnMsg;
-            return AdbUtils.process_check_success(process, "adb reverse", true);
+            bool rtn = AdbUtils.process_check_success(process, "adb reverse", true);
+            if (rtn == true) SetPortUsed(local_port);
+            return rtn;
         }
 
         public bool disable_tunnel_reverse(String serial)
@@ -111,9 +133,22 @@ namespace NScript.AndroidBot
 
         public bool enable_tunnel_forward(String serial, UInt16 local_port)
         {
+            if (IsPortUsed(local_port)) return false;
             ProcessSession process = AdbUtils.adb_forward(serial, local_port, SOCKET_NAME);
             process.OnMsg = process.OnErr = this.OnMsg;
-            return AdbUtils.process_check_success(process, "adb forward", true);
+            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
+            if (rtn == true) SetPortUsed(local_port);
+            return rtn;
+        }
+
+        public bool EnableUIAutomatorForward(String serial, UInt16 localPort, UInt16 remotePort)
+        {
+            if (IsPortUsed(localPort)) return false;
+            ProcessSession process = AdbUtils.adb_forward(serial, LocalServerPort, remotePort);
+            process.OnMsg = process.OnErr = this.OnMsg;
+            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
+            if (rtn == true) SetPortUsed(LocalServerPort);
+            return rtn;
         }
 
         public bool disable_tunnel_forward(String serial, UInt16 local_port)
@@ -127,7 +162,7 @@ namespace NScript.AndroidBot
         {
             if (this.tunnel_forward)
             {
-                return disable_tunnel_forward(this.Serial, this.local_port);
+                return disable_tunnel_forward(this.Serial, this.LocalServerPort);
             }
             return disable_tunnel_reverse(this.Serial);
         }
@@ -157,6 +192,16 @@ namespace NScript.AndroidBot
             OnMsg?.Invoke(msg);
         }
 
+        /// <summary>
+        /// 将 UI 界面 dump 出来。结果为 xml 布局文件。
+        /// </summary>
+        /// <returns></returns>
+        public String DumpUI()
+        {
+            String ui = this.AtxAgent.DumpUI();
+            return ui;
+        }
+
         public bool enable_tunnel_reverse_any_port(PortRange port_range)
         {
             UInt16 port = port_range.first;
@@ -177,7 +222,7 @@ namespace NScript.AndroidBot
                 this.server_socket = listen_on_port(port);
                 if(this.server_socket != null)
                 {
-                    this.local_port = port;
+                    this.LocalServerPort = port;
                     return true;
                 }
 
@@ -207,6 +252,37 @@ namespace NScript.AndroidBot
             }
         }
 
+        public bool EnableUIAutomatorForward(PortRange portRange)
+        {
+            UInt16 port = portRange.first;
+
+            while(true)
+            {
+                if(EnableUIAutomatorForward(this.Serial, port, 7912))  // Remote Port: 7912
+                {
+                    AtxAgent = new AtxAgentServer(port);
+                    return true;
+                }
+
+                if (port < portRange.last)
+                {
+                    LOGW($"Could not forward port {port}, retrying on {port + 1}");
+                    port++;
+                    continue;
+                }
+
+                if (portRange.first == portRange.last)
+                {
+                    LOGE($"Could not forward port {portRange.first}");
+                }
+                else
+                {
+                    LOGE($"Could not forward any port in range {portRange.first}:{portRange.last}");
+                }
+                return false;
+            }
+        }
+
         public bool enable_tunnel_forward_any_port(PortRange port_range)
         {
             this.tunnel_forward = true;
@@ -216,7 +292,7 @@ namespace NScript.AndroidBot
                 if (enable_tunnel_forward(this.Serial, port))
                 {
                     // success
-                    this.local_port = port;
+                    this.LocalServerPort = port;
                     return true;
                 }
 
@@ -395,6 +471,11 @@ namespace NScript.AndroidBot
                 return false;
             }
 
+            if (!this.EnableUIAutomatorForward(serverParams.UIAutomatorPortRange))
+            {
+                return false;
+            }
+
             // server will connect to our server socket
             this.process = this.execute_server(serverParams);
             this.process.OnMsg = this.process.OnErr = this.OnMsg;
@@ -475,9 +556,9 @@ namespace NScript.AndroidBot
             {
                 UInt32 attempts = 100;
                 UInt32 delay = 100; // ms
-                this.video_socket = this.connect_to_server(local_port, attempts, delay);
+                this.video_socket = this.connect_to_server(LocalServerPort, attempts, delay);
                 // we know that the device is listening, we don't need several attempts
-                this.control_socket = NetUtils.net_connect(IPV4_LOCALHOST, this.local_port);
+                this.control_socket = NetUtils.net_connect(IPV4_LOCALHOST, this.LocalServerPort);
             }
 
             // we don't need the adb tunnel anymore

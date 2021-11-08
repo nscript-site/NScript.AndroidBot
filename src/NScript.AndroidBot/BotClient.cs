@@ -17,7 +17,7 @@ namespace NScript.AndroidBot
         private static void ConfigFFmpeg()
         {
             if (IsFFmpegConfigged == true) return;
-            String[] searchPaths = { "./lib", "./ffmpeg", "./lib/ffmpeg", "c://lib/ffmpeg" };
+            String[] searchPaths = { "./lib", "./ffmpeg", "./lib/ffmpeg", "c://lib/ffmpeg", "d://lib/ffmpeg", "e://lib//ffmpeg" };
             foreach (var path in searchPaths)
             {
                 if (ConfigFFmpeg(path) != null) break;
@@ -41,6 +41,15 @@ namespace NScript.AndroidBot
         private Decoder Decoder { get; set; }
         private FrameSink FrameSink { get; set; }
         private Controller Controller { get; set; }
+
+        /// <summary>
+        /// 将 UI 界面 dump 出来。结果为 xml 布局文件。
+        /// </summary>
+        /// <returns></returns>
+        public String DumpUI()
+        {
+            return Server.DumpUI();
+        }
 
         /// <summary>
         /// Bot 选项

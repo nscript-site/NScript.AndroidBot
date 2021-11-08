@@ -94,5 +94,21 @@ namespace NScript.AndroidBot.WpfUI
                 MessageBox.Show("截图保存在: " + fileInfo.FullName);
             }
         }
+
+        private void ButtonGetLayout_Click(object sender, RoutedEventArgs e)
+        {
+            String msg = String.Empty;
+            try
+            {
+                msg = Client.DumpUI();
+            }
+            catch(Exception ex)
+            {
+                msg = ex.Message;
+            }
+            this.Dispatcher.Invoke(() => {
+                this.tbLayouts.Text = msg;
+            });
+        }
     }
 }

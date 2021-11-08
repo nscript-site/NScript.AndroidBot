@@ -34,6 +34,8 @@
   <ItemGroup>
     <PackageReference Include="FFmpeg.AutoGen" Version="4.4.0" />
     <PackageReference Include="Geb.Image" Version="2.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+    <PackageReference Include="RestSharp" Version="106.13.0" />
   </ItemGroup>
 
 </Project>
