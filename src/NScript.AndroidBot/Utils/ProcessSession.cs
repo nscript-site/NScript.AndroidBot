@@ -184,6 +184,13 @@ namespace NScript.AndroidBot
             return sb.ToString();
         }
 
+        public void RunAtBackground()
+        {
+            System.Threading.Tasks.Task.Run(() => {
+                Run();
+            });
+        }
+
         public String Run()
         {
             Process process = _process;
@@ -220,6 +227,15 @@ namespace NScript.AndroidBot
 
         private List<String> CacheOutputs = new List<String>();
 
+        private void AddToCacheOutputs(String msg)
+        {
+            if (CacheOutputs.Count > 1000)
+            {
+                CacheOutputs.RemoveRange(0, CacheOutputs.Count - 1000);
+            }
+            CacheOutputs.Add(msg);
+        }
+
         private String FetchCacheOutputs()
         {
             StringBuilder sb = new StringBuilder();
@@ -240,8 +256,7 @@ namespace NScript.AndroidBot
             {
                 lock (this)
                 {
-                    CacheOutputs.Add(e.Data);
-                    Console.WriteLine(e.Data);
+                    AddToCacheOutputs(e.Data);
                     if (OnMsg != null) OnMsg(e.Data);
                 }
             }
@@ -253,8 +268,7 @@ namespace NScript.AndroidBot
             {
                 lock (this)
                 {
-                    CacheOutputs.Add(e.Data);
-                    Console.WriteLine(e.Data);
+                    AddToCacheOutputs(e.Data);
                     if (OnErr != null) OnErr(e.Data);
                 }
             }

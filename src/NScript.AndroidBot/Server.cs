@@ -7,43 +7,6 @@ using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
-    public struct PortRange
-    {
-        public UInt16 first;
-        public UInt16 last;
-    };
-
-    public enum LogLevel
-    {
-        VERBOSE,
-        DEBUG,
-        INFO,
-        WARN,
-        ERROR,
-    };
-
-    public class ServerParams
-    {
-        public String serial;
-        public LogLevel log_level;
-        public String crop;
-        public String codec_options;
-        public String encoder_name;
-        public PortRange port_range = new PortRange { first = 27183, last = 28199 };
-        public PortRange UIAutomatorPortRange = new PortRange { first = 29183, last = 39199 };
-        public UInt16 max_size;
-        public UInt32 bit_rate = 8000000;
-        public UInt16 max_fps;
-        public Byte lock_video_orientation;
-        public bool control;
-        public UInt32 display_id;
-        public bool show_touches;
-        public bool stay_awake;
-        public bool force_adb_forward;
-        public bool power_off_on_close;
-
-    }
-
     public class Server
     {
         private static HashSet<UInt16> PortsUsed { get; set; } = new HashSet<ushort>();
@@ -60,28 +23,21 @@ namespace NScript.AndroidBot
                 PortsUsed.Add(port);
         }
 
-        public const String SOCKET_NAME = "scrcpy";
-        public const String SERVER_FILENAME = "scrcpy-server";
+        public const String SCRCPY_SOCKET_NAME = "scrcpy";
+        public const String SCRCPY_SERVER_FILENAME = "scrcpy-server";
         public const String DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
-        public const String DEFAULT_SERVER_PATH = "/share/scrcpy/" + SERVER_FILENAME;
+        public const String DEFAULT_SERVER_PATH = "/share/scrcpy/" + SCRCPY_SERVER_FILENAME;
         public const String SCRCPY_VERSION = "1.18";
-        const UInt32 IPV4_LOCALHOST = 0x7F000001;
+        static readonly IPAddress IPV4_LOCALHOST = IPAddress.Parse("127.0.0.1");
         const int DEVICE_NAME_FIELD_LENGTH = 64;
 
         public String Serial { get; set; }
-        public ProcessSession process;
-        public Task wait_server_thread;
-        public bool server_socket_closed;
-        public Mutex mutex;
         public Object syncRoot = new object();
-        public Object process_terminated_cond;
-        public bool process_terminated;
-        public Socket server_socket; // only used if !tunnel_forward
-        public Socket video_socket;
-        public Socket control_socket;
+
+        public ProcessSession ScrcpyServer;
+        public Socket VideoSocket;
+        public Socket ControlSocket;
         public UInt16 LocalServerPort; // selected from port_range
-        public bool tunnel_enabled;
-        public bool tunnel_forward; // use "adb forward" instead of "adb reverse"
 
         public String DeviceName { get; private set; }
         public System.Drawing.Size FrameSize { get; private set; }
@@ -90,91 +46,45 @@ namespace NScript.AndroidBot
 
         private AtxAgentServer AtxAgent { get; set; }
 
-        public string get_server_path()
+        public string GetScrcpyServerDeviceFileName()
         {
-            return SERVER_FILENAME;
+            return SCRCPY_SERVER_FILENAME;
         }
 
-        public bool push_server()
+        public bool PushScrcpyServerToDevice()
         {
-            String server_path = get_server_path();
-            if (server_path == null)
+            String deviceFilePath = GetScrcpyServerDeviceFileName();
+            if (deviceFilePath == null)
             {
                 return false;
             }
 
-            if (!is_regular_file(server_path))
-            {
-                LOGE($"'{server_path}' does not exist or is not a regular file\n");
-                return false;
-            }
-
-            ProcessSession process = AdbUtils.adb_push(Serial, server_path, DEVICE_SERVER_PATH);
+            ProcessSession process = AdbUtils.adb_push(Serial, deviceFilePath, DEVICE_SERVER_PATH);
             process.OnMsg = process.OnErr = this.OnMsg;
             return AdbUtils.process_check_success(process, "adb push", true);
         }
 
-        public bool enable_tunnel_reverse(String serial, UInt16 local_port)
-        {
-            if (IsPortUsed(local_port)) return false;
-            ProcessSession process = AdbUtils.adb_reverse(serial, SOCKET_NAME, local_port);
-            process.OnMsg = process.OnErr = this.OnMsg;
-            bool rtn = AdbUtils.process_check_success(process, "adb reverse", true);
-            if (rtn == true) SetPortUsed(local_port);
-            return rtn;
-        }
-
-        public bool disable_tunnel_reverse(String serial)
-        {
-            ProcessSession process = AdbUtils.adb_reverse_remove(serial, SOCKET_NAME);
-            process.OnMsg = process.OnErr = this.OnMsg;
-            return AdbUtils.process_check_success(process, "adb reverse --remove", true);
-        }
-
-        public bool enable_tunnel_forward(String serial, UInt16 local_port)
-        {
-            if (IsPortUsed(local_port)) return false;
-            ProcessSession process = AdbUtils.adb_forward(serial, local_port, SOCKET_NAME);
-            process.OnMsg = process.OnErr = this.OnMsg;
-            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
-            if (rtn == true) SetPortUsed(local_port);
-            return rtn;
-        }
-
-        public bool EnableUIAutomatorForward(String serial, UInt16 localPort, UInt16 remotePort)
-        {
-            if (IsPortUsed(localPort)) return false;
-            ProcessSession process = AdbUtils.adb_forward(serial, localPort, remotePort);
-            process.OnMsg = process.OnErr = this.OnMsg;
-            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
-            if (rtn == true) SetPortUsed(LocalServerPort);
-            return rtn;
-        }
-
-        public bool disable_tunnel_forward(String serial, UInt16 local_port)
+        public bool DisableTunnelForward(String serial, UInt16 local_port)
         {
             ProcessSession process = AdbUtils.adb_forward_remove(serial, local_port);
             process.OnMsg = process.OnErr = this.OnMsg;
             return AdbUtils.process_check_success(process, "adb forward --remove", true);
         }
 
-        public bool disable_tunnel()
+        public bool EnableTunnelForward(String serial, UInt16 localPort, UInt16 remotePort = 0)
         {
-            if (this.tunnel_forward)
-            {
-                return disable_tunnel_forward(this.Serial, this.LocalServerPort);
-            }
-            return disable_tunnel_reverse(this.Serial);
+            if (IsPortUsed(localPort)) return false;
+            ProcessSession process = remotePort > 0 ? AdbUtils.adb_forward(serial, localPort, remotePort) 
+                : AdbUtils.adb_forward(serial, localPort, SCRCPY_SOCKET_NAME);
+            process.OnMsg = process.OnErr = this.OnMsg;
+            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
+            SetPortUsed(localPort);
+            return rtn;
         }
 
-        static Socket listen_on_port(UInt16 port)
+        static Socket ListenOnPort(UInt16 port)
         {
-            return NetUtils.net_listen(IPAddress.Parse("127.0.0.1"), port, 2);
-        }
-
-        public bool is_regular_file(String filePath)
-        {
-            return true;
+            return NetUtils.Listen(IPAddress.Parse("127.0.0.1"), port, 2);
         }
 
         public void LOGE(String msg)
@@ -202,196 +112,72 @@ namespace NScript.AndroidBot
             return ui;
         }
 
-        public bool enable_tunnel_reverse_any_port(PortRange port_range)
+        public bool EnableUIAutomatorForward(UInt16 portStart)
         {
-            UInt16 port = port_range.first;
-            for (; ; )
+            for(UInt16 port = portStart; port < 62300; port ++)
             {
-                if (!enable_tunnel_reverse(this.Serial, port))
-                {
-                    // the command itself failed, it will fail on any port
-                    return false;
-                }
-
-                // At the application level, the device part is "the server" because it
-                // serves video stream and control. However, at the network level, the
-                // client listens and the server connects to the client. That way, the
-                // client can listen before starting the server app, so there is no
-                // need to try to connect until the server socket is listening on the
-                // device.
-                this.server_socket = listen_on_port(port);
-                if(this.server_socket != null)
-                {
-                    this.LocalServerPort = port;
-                    return true;
-                }
-
-                // failure, disable tunnel and try another port
-                if (!disable_tunnel_reverse(this.Serial))
-                {
-                    LOGW($"Could not remove reverse tunnel on port {port}");
-                }
-
-                // check before incrementing to avoid overflow on port 65535
-                if (port < port_range.last)
-                {
-                    LOGW($"Could not listen on port {port}, retrying on {port + 1}");
-                    port++;
-                    continue;
-                }
-
-                if (port_range.first == port_range.last)
-                {
-                    LOGE($"Could not listen on port {port_range.first}");
-                }
-                else
-                {
-                    LOGE($"Could not listen on any port in range {port_range.first}:{port_range.last}");
-                }
-                return false;
-            }
-        }
-
-        public bool EnableUIAutomatorForward(PortRange portRange)
-        {
-            UInt16 port = portRange.first;
-
-            while(true)
-            {
-                if(EnableUIAutomatorForward(this.Serial, port, 7912))  // Remote Port: 7912
+                if (EnableTunnelForward(this.Serial, port, 7912))  // Remote Port: 7912
                 {
                     AtxAgent = new AtxAgentServer(port);
                     return true;
                 }
-
-                if (port < portRange.last)
-                {
-                    LOGW($"Could not forward port {port}, retrying on {port + 1}");
-                    port++;
-                    continue;
-                }
-
-                if (portRange.first == portRange.last)
-                {
-                    LOGE($"Could not forward port {portRange.first}");
-                }
-                else
-                {
-                    LOGE($"Could not forward any port in range {portRange.first}:{portRange.last}");
-                }
-                return false;
             }
+
+            LOGE($"Could not forward UIAutomator port");
+            return false;
         }
 
-        public bool enable_tunnel_forward_any_port(PortRange port_range)
+        public bool EnableScrcpyForward(UInt16 portStart)
         {
-            this.tunnel_forward = true;
-            UInt16 port = port_range.first;
-            for (;;)
+            for (UInt16 port = portStart; port < 62300; port++)
             {
-                if (enable_tunnel_forward(this.Serial, port))
+                if (EnableTunnelForward(this.Serial, port))
                 {
-                    // success
                     this.LocalServerPort = port;
                     return true;
                 }
-
-                if (port < port_range.last)
-                {
-                    LOGW($"Could not forward port {port}, retrying on {port + 1}");
-                    port++;
-                    continue;
-                }
-
-                if (port_range.first == port_range.last)
-                {
-                    LOGE($"Could not forward port {port_range.first}");
-                }
-                else
-                {
-                    LOGE($"Could not forward any port in range {port_range.first}:{port_range.last}");
-                }
-                return false;
-            }
-        }
-
-        public bool enable_tunnel_any_port(PortRange port_range, bool force_adb_forward)
-        {
-            if (!force_adb_forward)
-            {
-                // Attempt to use "adb reverse"
-                if (enable_tunnel_reverse_any_port(port_range))
-                {
-                    return true;
-                }
-
-                // if "adb reverse" does not work (e.g. over "adb connect"), it
-                // fallbacks to "adb forward", so the app socket is the client
-
-                LOGW("'adb reverse' failed, fallback to 'adb forward'");
             }
 
-            return enable_tunnel_forward_any_port(port_range);
+            LOGE($"Could not forward Scrcpy port");
+            return false;
         }
 
-        public ProcessSession execute_server(ServerParams serverParams)
+        public ProcessSession RunScrcpyServer(ServerParams serverParams)
         {
             String[] cmd = {
-        "shell",
-        "CLASSPATH=" + DEVICE_SERVER_PATH,
-        "app_process",
-//#ifdef SERVER_DEBUGGER
-//# define SERVER_DEBUGGER_PORT "5005"
-//# ifdef SERVER_DEBUGGER_METHOD_NEW
-//        /* Android 9 and above */
-//        "-XjdwpProvider:internal -XjdwpOptions:transport=dt_socket,suspend=y,server=y,address="
-//# else
-//        /* Android 8 and below */
-//        "-agentlib:jdwp=transport=dt_socket,suspend=y,server=y,address="
-//# endif
-//            SERVER_DEBUGGER_PORT,
-//#endif
-        "/", // unused
-        "com.genymobile.scrcpy.Server",
-        SCRCPY_VERSION,
-        AdbUtils.log_level_to_server_string(serverParams.log_level),
-        serverParams.max_size.ToString(),
-        serverParams.bit_rate.ToString(),
-        serverParams.max_fps.ToString(),
-        serverParams.lock_video_orientation.ToString(),
-        this.tunnel_forward ? "true" : "false",
-        serverParams.crop != null ? serverParams.crop : "-",
-        "true", // always send frame meta (packet boundaries + timestamp)
-        serverParams.control? "true" : "false",
-        serverParams.display_id.ToString(),
-        serverParams.show_touches ? "true" : "false",
-        serverParams.stay_awake ? "true" : "false",
-        serverParams.codec_options != null ? serverParams.codec_options : "-",
-        serverParams.encoder_name != null ? serverParams.encoder_name : "-",
-        serverParams.power_off_on_close ? "true" : "false",
-    };
-            //# ifdef SERVER_DEBUGGER
-            //        LOGI("Server debugger waiting for a client on device port "
-            //         SERVER_DEBUGGER_PORT "...");
-            //    // From the computer, run
-            //    //     adb forward tcp:5005 tcp:5005
-            //    // Then, from Android Studio: Run > Debug > Edit configurations...
-            //    // On the left, click on '+', "Remote", with:
-            //    //     Host: localhost
-            //    //     Port: 5005
-            //    // Then click on "Debug"
-            //#endif
+                "shell",
+                "CLASSPATH=" + DEVICE_SERVER_PATH,
+                "app_process",
+                "/", // unused
+                "com.genymobile.scrcpy.Server",
+                SCRCPY_VERSION,
+                AdbUtils.log_level_to_server_string(serverParams.log_level),
+                serverParams.max_size.ToString(),
+                serverParams.bit_rate.ToString(),
+                serverParams.max_fps.ToString(),
+                serverParams.lock_video_orientation.ToString(),
+                "true", // true - forward, false - reverse 
+                serverParams.crop != null ? serverParams.crop : "-",
+                "true", // always send frame meta (packet boundaries + timestamp)
+                serverParams.control? "true" : "false",
+                serverParams.display_id.ToString(),
+                serverParams.show_touches ? "true" : "false",
+                serverParams.stay_awake ? "true" : "false",
+                serverParams.codec_options != null ? serverParams.codec_options : "-",
+                serverParams.encoder_name != null ? serverParams.encoder_name : "-",
+                serverParams.power_off_on_close ? "true" : "false",
+            };
 
             return AdbUtils.adb_execute(Serial, cmd);
         }
 
-        public Socket connect_and_read_byte(UInt16 port)
+        public Socket ConnectAndReadByte(UInt16 port)
         {
-            Socket socket = NetUtils.net_connect(IPV4_LOCALHOST, port);
+            Socket socket = NetUtils.Connect(IPV4_LOCALHOST, port);
             byte[] bytes = new byte[1];
             // the connection may succeed even if the server behind the "adb tunnel"
             // is not listening, so read one byte to detect a working connection
-            if (NetUtils.net_recv(socket, new Span<byte>(bytes)) != 1)
+            if (socket.Receive(new Span<byte>(bytes)) != 1)
             {
                 socket.Close();
                 // the server is not listening yet behind the adb tunnel
@@ -400,12 +186,12 @@ namespace NScript.AndroidBot
             return socket;
         }
 
-        public Socket connect_to_server(UInt16 port, UInt32 attempts, UInt32 delay /*ms*/)
+        public Socket ConnectToServer(UInt16 port, UInt32 attempts, UInt32 delay /*ms*/)
         {
             do
             {
                 LOGD($"Remaining connection attempts: {attempts}");
-                Socket socket = connect_and_read_byte(port);
+                Socket socket = ConnectAndReadByte(port);
                 if (socket != null)
                 {
                     // it worked!
@@ -420,56 +206,16 @@ namespace NScript.AndroidBot
             return null;
         }
 
-        static void close_socket(Socket socket)
-        {
-            if (socket == null) return;
-            NetUtils.net_shutdown(socket, SocketShutdown.Both);
-            socket.Close();
-        }
-
-        int run_wait_server()
-        {
-            this.process.Run();
-            this.process_terminated = true;
-            if (this.server_socket != null)
-            {
-                this.server_socket.Close();
-            }
-
-            //process_wait(server->process, false); // ignore exit code
-
-            //sc_mutex_lock(&server->mutex);
-            //server->process_terminated = true;
-            //sc_cond_signal(&server->process_terminated_cond);
-            //sc_mutex_unlock(&server->mutex);
-
-            //// no need for synchronization, server_socket is initialized before this
-            //// thread was created
-            //if (server->server_socket != INVALID_SOCKET
-            //        && !atomic_flag_test_and_set(&server->server_socket_closed))
-            //{
-            //    // On Linux, accept() is unblocked by shutdown(), but on Windows, it is
-            //    // unblocked by closesocket(). Therefore, call both (close_socket()).
-            //    close_socket(server->server_socket);
-            //}
-            //LOGD("Server terminated");
-            return 0;
-        }
-
         public bool Start(ServerParams serverParams)
         {
             this.Serial = serverParams.serial;
 
-            if (!this.push_server())
-            {
+            if (!this.PushScrcpyServerToDevice())
                 return false;
-            }
 
-            if (!this.enable_tunnel_any_port(serverParams.port_range,
-                                            serverParams.force_adb_forward))
-            {
-                return false;
-            }
+            if (!this.EnableScrcpyForward(serverParams.port_start)) return false;
+
+            #region 启动 AtxAgent
 
             // 检查是否安装 AtxAgent
             if (this.IsAtxAgentInstalled() == false)
@@ -477,17 +223,17 @@ namespace NScript.AndroidBot
                 this.InstallAtxAgent();
             }
 
-            if (!this.EnableUIAutomatorForward(serverParams.UIAutomatorPortRange))
+            if (!this.EnableUIAutomatorForward(serverParams.port_start))
             {
                 return false;
             }
 
-            if(this.AtxAgent.IsRunning() == false)
+            if (this.AtxAgent.IsRunning() == false)
             {
                 StopAtxAgent();
                 StartAtxAgent();
 
-                if(this.AtxAgent.WaitRunning(5000) == false)
+                if (this.AtxAgent.WaitRunning(5000) == false)
                 {
                     this.InstallAtxAgent();
                 }
@@ -496,47 +242,52 @@ namespace NScript.AndroidBot
                     return false;
             }
 
+            #endregion
+
             // server will connect to our server socket
-            this.process = this.execute_server(serverParams);
-            this.process.OnMsg = this.process.OnErr = this.OnMsg;
-            if (this.process == null) goto error;
+            this.ScrcpyServer = this.RunScrcpyServer(serverParams);
+            this.ScrcpyServer.OnMsg = this.ScrcpyServer.OnErr = this.OnMsg;
+            this.ScrcpyServer.RunAtBackground();
 
-            // If the server process dies before connecting to the server socket, then
-            // the client will be stuck forever on accept(). To avoid the problem, we
-            // must be able to wake up the accept() call when the server dies. To keep
-            // things simple and multiplatform, just spawn a new thread waiting for the
-            // server process and calling shutdown()/close() on the server socket if
-            // necessary to wake up any accept() blocking call.
-
-            this.wait_server_thread = new Task(() => run_wait_server());
-            this.wait_server_thread.Start();
-
-            //if (!ok)
-            //{
-            //    process_terminate(server->process);
-            //    process_wait(server->process, true); // ignore exit code
-            //    goto error;
-            //}
-
-            this.tunnel_enabled = true;
+            ConnectScrcpySockets();
 
             return true;
-
-        error:
-            if (!this.tunnel_forward)
-            {
-                this.server_socket_closed = true;
-                this.server_socket.Close();
-            }
-            this.disable_tunnel();
-
-            return false;
         }
 
-        public (string,int,int) ReadDeviceInfo(Socket socket)
+        private void ConnectScrcpySockets()  // server_connect_to()  
+        {
+            UInt32 attempts = 100;
+            UInt32 delay = 100; // ms
+            this.VideoSocket = this.ConnectToServer(LocalServerPort, attempts, delay);
+            this.ControlSocket = NetUtils.Connect(IPV4_LOCALHOST, this.LocalServerPort);
+
+            // The sockets will be closed on stop if device_read_info() fails
+            (string deviceName, int width, int height) = ReadDeviceInfo(this.VideoSocket);
+            this.DeviceName = deviceName;
+            this.FrameSize = new System.Drawing.Size(width, height);
+        }
+
+        public void StopScrcpySockets()
+        {
+            if (this.VideoSocket != null)
+            {
+                this.VideoSocket.Close();
+            }
+
+            if (this.ControlSocket != null)
+            {
+                this.ControlSocket.Close();
+            }
+
+            this.DisableTunnelForward(Serial, LocalServerPort);
+
+            this.ScrcpyServer.Kill();
+        }
+
+        public (string, int, int) ReadDeviceInfo(Socket socket)
         {
             byte[] buf = new byte[DEVICE_NAME_FIELD_LENGTH + 4];
-            if (NetUtils.net_recv_all(socket, buf) < DEVICE_NAME_FIELD_LENGTH + 4)
+            if (NetUtils.RecvAll(socket, buf) < DEVICE_NAME_FIELD_LENGTH + 4)
             {
                 throw new BotException("Could not retrieve device information");
             }
@@ -559,92 +310,14 @@ namespace NScript.AndroidBot
             return (deviceName, width, height);
         }
 
-        public void Connect()  // server_connect_to()  
-        {
-            if (!this.tunnel_forward)
-            {
-                this.video_socket = NetUtils.net_accept(this.server_socket);
+        #region AtxAgent Methods
 
-                this.control_socket = NetUtils.net_accept(this.server_socket);
-                if (this.server_socket_closed == false)
-                {
-                    this.server_socket_closed = true;
-                    this.server_socket.Close();
-                }
-            }
-            else
-            {
-                UInt32 attempts = 100;
-                UInt32 delay = 100; // ms
-                this.video_socket = this.connect_to_server(LocalServerPort, attempts, delay);
-                // we know that the device is listening, we don't need several attempts
-                this.control_socket = NetUtils.net_connect(IPV4_LOCALHOST, this.LocalServerPort);
-            }
-
-            // we don't need the adb tunnel anymore
-            this.disable_tunnel(); // ignore failure
-            this.tunnel_enabled = false;
-
-            // The sockets will be closed on stop if device_read_info() fails
-            (string deviceName, int width, int height) = ReadDeviceInfo(this.video_socket);
-            this.DeviceName = deviceName;
-            this.FrameSize = new System.Drawing.Size(width, height);
-        }
-
-        public void server_stop()
-        {
-            if (this.server_socket != null && this.server_socket_closed == false)
-            {
-                this.server_socket_closed = true;
-                this.server_socket.Close();
-            }
-
-            if (this.video_socket != null)
-            {
-                this.video_socket.Close();
-            }
-
-            if (this.control_socket != null)
-            {
-                this.control_socket.Close();
-            }
-
-            if (this.tunnel_enabled)
-            {
-                // ignore failure
-                this.disable_tunnel();
-            }
-
-            this.process.Kill();
-        }
-
-        static String __atx_listen_addr = "127.0.0.1:7912";
-
-        //    def _install_uiautomator_apks(self):
-        //    """ use uiautomator 2.0 to run uiautomator test
-        //    通常在连接USB数据线的情况下调用
-        //    """
-        //    self.shell("pm", "uninstall", "com.github.uiautomator")
-        //    self.shell("pm", "uninstall", "com.github.uiautomator.test")
-        //    for filename, url in app_uiautomator_apk_urls() :
-        //        path = self.push_url(url, mode=0o644)
-        //        self.shell("pm", "install", "-r", "-t", path)
-        //        self.logger.info("- %s installed", filename)
-
-        //def _install_jars(self):
-        //    """ use uiautomator 1.0 to run uiautomator test """
-        //    for (name, url) in self.jar_urls:
-        //        self.push_url(url, "/data/local/tmp/" + name, mode=0o644)
-
-        //def _install_atx_agent(self):
-        //    self.logger.info("Install atx-agent %s", __atx_agent_version__)
-        //    self.push_url(self.atx_agent_url, tgz=True, extract_name="atx-agent")
-
-        string atx_agent_path = "/data/local/tmp/atx-agent";
+        static String AtxListenAddr = "127.0.0.1:7912";
+        string AtxAgentPath = "/data/local/tmp/atx-agent";
 
         internal bool IsAtxAgentInstalled()
         {
-            String rtn = AdbUtils.RunShell(Serial, "du", "-h", atx_agent_path);
+            String rtn = AdbUtils.RunShell(Serial, "du", "-h", AtxAgentPath);
             return rtn.StartsWith("du:") == false;
         }
 
@@ -672,48 +345,41 @@ namespace NScript.AndroidBot
             AdbUtils.RunShell(Serial, "pm", "uninstall", "com.github.uiautomator");
             AdbUtils.RunShell(Serial, "pm", "uninstall", "com.github.uiautomator.test");
 
-            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/app-uiautomator.apk","0644"));
+            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/app-uiautomator.apk", "0644"));
             AdbUtils.RunShell(Serial, "pm", "install", "-r", "-t", Push("./tools/app-uiautomator-test.apk", "0644"));
         }
 
         internal void StopAtxAgent()
         {
-            this.OnMsg?.Invoke($"[{Serial}] adb shell {atx_agent_path} server --stop");
-            AdbUtils.RunShell(Serial, atx_agent_path, "server", "--stop");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell {AtxAgentPath} server --stop");
+            AdbUtils.RunShell(Serial, AtxAgentPath, "server", "--stop");
         }
 
         internal void StartAtxAgent()
         {
-            GrantPermissions();
+            GrantAtxPermissions();
             // adb shell /data/local/tmp/atx-agent server --nouia -d --addr 127.0.0.1:7912
-            this.OnMsg?.Invoke($"[{Serial}] adb shell {atx_agent_path} server --nouia -d --addr {__atx_listen_addr}");
-            AdbUtils.RunShell(Serial, atx_agent_path, "server", "--nouia", "-d", "--addr", __atx_listen_addr);
+            this.OnMsg?.Invoke($"[{Serial}] adb shell {AtxAgentPath} server --nouia -d --addr {AtxListenAddr}");
+            AdbUtils.RunShell(Serial, AtxAgentPath, "server", "--nouia", "-d", "--addr", AtxListenAddr);
         }
 
-        internal void GrantPermissions()
+        internal void GrantAtxPermissions()
         {
-            String[] permissions = 
+            String[] permissions =
                 {
                 "android.permission.SYSTEM_ALERT_WINDOW",
                 "android.permission.ACCESS_FINE_LOCATION",
                 "android.permission.READ_PHONE_STATE"
                 };
 
-            foreach(var permission in permissions)
+            foreach (var permission in permissions)
             {
                 this.OnMsg?.Invoke($"[{Serial}] adb shell pm grant com.github.uiautomator {permission}");
                 AdbUtils.RunShell(Serial, "pm", "grant", "com.github.uiautomator", permission);
             }
         }
 
-        internal void StartUiAutomator()
-        {
-            // adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n com.github.uiautomator/.ToastActivity
-
-            //adb shell am instrument -w - r - e debug false - e class com.github.uiautomator.stub.Stub com.github.uiautomator.test/android.support.test.runner.AndroidJUnitRunner
-
-                           //AdbUtils.RunShell(Serial,""
-        }
+        #endregion
 
         internal String Push(String filePath, String permission = "0755", String dest = null)
         {

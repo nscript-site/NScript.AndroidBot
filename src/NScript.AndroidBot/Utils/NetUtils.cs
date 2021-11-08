@@ -9,9 +9,9 @@ namespace NScript.AndroidBot
 {
     public class NetUtils
     {
-        public static Socket net_connect(UInt32 addr, UInt16 port)
+        public static Socket Connect(IPAddress addr, UInt16 port)
         {
-            Socket sock = new Socket(SocketType.Stream, ProtocolType.IPv4);
+            Socket sock = new Socket(SocketType.Stream, ProtocolType.Tcp);
             IPEndPoint sin = new IPEndPoint(addr, port);
             try
             {
@@ -25,7 +25,7 @@ namespace NScript.AndroidBot
             return sock;
         }
 
-        public static Socket net_listen(IPAddress addr, UInt16 port, int backlog)
+        public static Socket Listen(IPAddress addr, UInt16 port, int backlog)
         {
             Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -44,35 +44,19 @@ namespace NScript.AndroidBot
             return sock;
         }
 
-        public static Socket net_accept(Socket server_socket)
-        {
-            return server_socket.Accept();
-        }
-
-        public static int net_recv(Socket socket, Span<Byte> buff)
-        {
-            int len = socket.Receive(buff);
-            return len;
-        }
-
-        public static int net_recv_all(Socket socket, Byte[] buff)
+        public static int RecvAll(Socket socket, Byte[] buff)
         {
             int len = socket.Receive(buff, buff.Length, SocketFlags.None);
             return len;
         }
 
-        public static int net_recv_all(Socket socket, Span<Byte> buff)
+        public static int RecvAll(Socket socket, Span<Byte> buff)
         {
             int len = socket.Receive(buff, SocketFlags.None);
             return len;
         }
 
-        public static int net_send(Socket socket, ReadOnlySpan<Byte> buff)
-        {
-            return socket.Send(buff);
-        }
-
-        public static int net_send_all(Socket socket, ReadOnlySpan<Byte> buff)
+        public static int SendAll(Socket socket, ReadOnlySpan<Byte> buff)
         {
             int w = 0;
             int len = buff.Length;
@@ -91,7 +75,7 @@ namespace NScript.AndroidBot
             return w;
         }
 
-        public static bool net_shutdown(Socket socket, SocketShutdown how)
+        public static bool ShutDown(Socket socket, SocketShutdown how)
         {
             bool result = true;
             try

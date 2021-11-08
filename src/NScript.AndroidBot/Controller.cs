@@ -37,7 +37,7 @@ namespace NScript.AndroidBot
             {
                 int len = msg.Serialize(pBuff);
                 ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(pBuff, len);
-                int sendLen = NetUtils.net_send_all(control_socket, span);
+                int sendLen = NetUtils.SendAll(control_socket, span);
                 return sendLen == len;
             }
         }

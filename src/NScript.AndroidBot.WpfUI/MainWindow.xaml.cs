@@ -44,7 +44,8 @@ namespace NScript.AndroidBot.WpfUI
         {
             if (msg == null) return;
             this.Dispatcher.InvokeAsync(() => {
-                this.tbMsgs.AppendText(msg + Environment.NewLine);
+                DateTime now = DateTime.Now;
+                this.tbMsgs.AppendText($"[{now.ToShortTimeString()}]"+  msg + Environment.NewLine);
                 this.tbMsgs.ScrollToEnd();
             });
         }

@@ -19,6 +19,9 @@ namespace NScript.AndroidBot
         public AVPacket* pending;
         public void* CbsUserData;
         public Action<IntPtr> OnCbs { get; set; }
+        public Action<String> OnMsg { get; set; }
+
+        public String Name { get; set; } = String.Empty;
 
         public Stream(Socket socket)
         {
@@ -76,7 +79,7 @@ namespace NScript.AndroidBot
             Byte* pHeader = stackalloc byte[HEADER_SIZE];
             Span<Byte> header = new Span<byte>(pHeader, HEADER_SIZE);
 
-            int r = NetUtils.net_recv_all(Socket, header);
+            int r = NetUtils.RecvAll(Socket, header);
             if (r < HEADER_SIZE)
             {
                 return false;
@@ -94,7 +97,7 @@ namespace NScript.AndroidBot
             }
 
             Span<Byte> data = new Span<byte>(packet->data, len);
-            r = NetUtils.net_recv_all(Socket, data);
+            r = NetUtils.RecvAll(Socket, data);
             if (r < 0 || r < len)
             {
                 ffmpeg.av_packet_unref(packet);
@@ -266,8 +269,10 @@ namespace NScript.AndroidBot
             return true;
         }
 
-        public int run_stream()
+        public int RunBackgroundWork()
         {
+            OnMsg?.Invoke($"[{Name}] start video decoding");
+
             AVCodec* codec = ffmpeg.avcodec_find_decoder(AVCodecID.AV_CODEC_ID_H264);
             Exception ex = null;
             if (codec == null)
@@ -343,6 +348,8 @@ namespace NScript.AndroidBot
         end:
             Cbs(CbsUserData);
 
+            OnMsg?.Invoke($"[{Name}] stop video decoding");
+
             return 0;
         }
 
@@ -352,7 +359,7 @@ namespace NScript.AndroidBot
             //LOGD("Starting stream thread");
             Task = new Task(() =>
             {
-                run_stream();
+                RunBackgroundWork();
             });
             this.Task.Start();
             return true;

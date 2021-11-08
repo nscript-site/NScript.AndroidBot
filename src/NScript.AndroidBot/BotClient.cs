@@ -95,17 +95,17 @@ namespace NScript.AndroidBot
             this.Server = new Server();
             this.Server.OnMsg = this.OnMsg;
             this.Server.Start(serverParams);
-            this.Server.Connect();
             this.Decoder = new Decoder();
             this.FrameSink = new FrameSink();
             this.FrameSink.Width = this.Server.FrameSize.Width;
             this.FrameSink.Height = this.Server.FrameSize.Height;
             this.FrameSink.OnRender = this.OnRender;
             this.Decoder.AddSink(this.FrameSink);
-            this.Stream = new Stream(this.Server.video_socket);
+            this.Stream = new Stream(this.Server.VideoSocket);
+            this.Stream.OnMsg = this.OnMsg;
             this.Stream.AddSink(this.Decoder);
             this.Stream.Start();
-            this.Controller = new Controller(this.Server.control_socket);
+            this.Controller = new Controller(this.Server.ControlSocket);
             this.Controller.Start();
         }
     }

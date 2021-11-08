@@ -17,6 +17,34 @@ namespace NScript.AndroidBot
         LockVideoOrientation_3,
     };
 
+    public enum LogLevel
+    {
+        VERBOSE,
+        DEBUG,
+        INFO,
+        WARN,
+        ERROR,
+    };
+
+    public class ServerParams
+    {
+        public String serial;
+        public LogLevel log_level;
+        public String crop;
+        public String codec_options;
+        public String encoder_name;
+        public UInt16 port_start = 29187;
+        public UInt16 max_size;
+        public UInt32 bit_rate = 8000000;
+        public UInt16 max_fps;
+        public Byte lock_video_orientation;
+        public bool control;
+        public UInt32 display_id;
+        public bool show_touches;
+        public bool stay_awake;
+        public bool power_off_on_close;
+    }
+
     public class BotOptions
     {
         public String Serial;
@@ -30,7 +58,6 @@ namespace NScript.AndroidBot
         public String V4l2Device;
         public LogLevel LogLevel;
         //enum sc_record_format record_format;
-        public PortRange PortRange = new PortRange { first = 27183, last = 27199 };
         //struct sc_shortcut_mods shortcut_mods;
         public UInt16 MaxSize = 1024;
         public UInt32 BitRate = 8000000;
@@ -52,7 +79,7 @@ namespace NScript.AndroidBot
         public bool WindowBorderless;
         public bool Mipmaps;
         public bool StayAwake;
-        public bool ForceAdbForward;
+        public bool ForceAdbForward = true;
         public bool DisableScreensaver;
         public bool ForwardKeyRepeat;
         public bool ForwardAllClicks;
@@ -65,7 +92,6 @@ namespace NScript.AndroidBot
             sp.serial = this.Serial;
             sp.log_level = this.LogLevel;
             sp.crop = this.Crop;
-            sp.port_range = this.PortRange;
             sp.max_size = this.MaxSize;
             sp.bit_rate = this.BitRate;
             sp.max_fps = this.MaxFps;
@@ -76,7 +102,6 @@ namespace NScript.AndroidBot
             sp.stay_awake = this.StayAwake;
             sp.codec_options = this.CodecOptions;
             sp.encoder_name = this.EncoderName;
-            sp.force_adb_forward = this.ForceAdbForward;
             sp.power_off_on_close = this.PowerOffOnClose;
             return sp;
         }
