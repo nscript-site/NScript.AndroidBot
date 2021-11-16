@@ -20,6 +20,7 @@ namespace NScript.AndroidBot
         CONTROL_MSG_TYPE_SET_CLIPBOARD,
         CONTROL_MSG_TYPE_SET_SCREEN_POWER_MODE,
         CONTROL_MSG_TYPE_ROTATE_DEVICE,
+        NONE
     };
 
     public enum ScreenPowerMode
@@ -48,6 +49,23 @@ namespace NScript.AndroidBot
         // accordingly.
         public Size ScreenSize;
         public Point Point;
+        public Position(System.Drawing.Point point, System.Drawing.Size size)
+        {
+            this.Point = new Point { X = point.X, Y = point.Y };
+            this.ScreenSize = new Size { Width = (UInt16)size.Width, Height = (UInt16)size.Height };
+        }
+
+        public Position(int x, int y, System.Drawing.Size size)
+        {
+            this.Point = new Point { X = x, Y = y };
+            this.ScreenSize = new Size { Width = (UInt16)size.Width, Height = (UInt16)size.Height };
+        }
+
+        public Position(int x, int y, int width, int height)
+        {
+            this.Point = new Point { X = x, Y = y };
+            this.ScreenSize = new Size { Width = (UInt16)width, Height = (UInt16)height };
+        }
     };
 
     public class Labels
@@ -91,13 +109,21 @@ namespace NScript.AndroidBot
 
     public unsafe abstract class ControlMsg
     {
-        internal static void buffer_write16be(Byte* buf, UInt16 value)
+        public const String MonseDown = "MouseDown";
+        public const String MonseUp = "MouseUp";
+        public const String MonseMove = "MouseMove";
+
+        static internal readonly Int64 POINTER_ID_MOUSE = -1;
+
+        static internal readonly Int64 POINTER_ID_VIRTUAL_FINGER = -2;
+
+        internal static void BufferWrite16be(Byte* buf, UInt16 value)
         {
             buf[0] = (byte)(value >> 8);
             buf[1] = (byte)value;
         }
 
-        internal static void buffer_write32be(Byte* buf, UInt32 value)
+        internal static void BufferWrite32be(Byte* buf, UInt32 value)
         {
             buf[0] = (byte)(value >> 24);
             buf[1] = (byte)(value >> 16);
@@ -105,28 +131,37 @@ namespace NScript.AndroidBot
             buf[3] = (byte)value;
         }
 
-        internal static void buffer_write64be(Byte* buf, UInt64 value)
+        internal static void BufferWrite64be(Byte* buf, UInt64 value)
         {
-            buffer_write32be(buf, (byte)(value >> 32));
-            buffer_write32be(&buf[4], (UInt32)value);
+            BufferWrite32be(buf, (UInt32)(value >> 32));
+            BufferWrite32be(&buf[4], (UInt32)value);
         }
 
-        internal static void write_position(byte* buf, ref Position position)
+        internal static void BufferWrite64be(Byte* buf, Int64 value)
         {
-            buffer_write32be(&buf[0], (uint)position.Point.X);
-            buffer_write32be(&buf[4], (uint)position.Point.Y);
-            buffer_write16be(&buf[8], position.ScreenSize.Width);
-            buffer_write16be(&buf[10], position.ScreenSize.Height);
+            unchecked
+            {
+                UInt64 val = (UInt64)value;
+                BufferWrite64be(buf, val);
+            }
+        }
+
+        internal static void WritePosition(byte* buf, ref Position position)
+        {
+            BufferWrite32be(&buf[0], (uint)position.Point.X);
+            BufferWrite32be(&buf[4], (uint)position.Point.Y);
+            BufferWrite16be(&buf[8], position.ScreenSize.Width);
+            BufferWrite16be(&buf[10], position.ScreenSize.Height);
         }
 
         // write length (2 bytes) + string (non nul-terminated)
-        internal static int write_string(String utf8, int max_len, byte* buf)
+        internal static int WriteString(String utf8, int max_len, byte* buf)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(utf8);
             fixed(byte* pBytes = bytes)
             {
                 int len = Math.Min(bytes.Length, max_len);
-                buffer_write32be(buf, (uint)len);
+                BufferWrite32be(buf, (uint)len);
                 Span<byte> dst = new Span<byte>(buf + 4, len);
                 Span<byte> source = new Span<byte>(pBytes, len);
                 source.CopyTo(dst);
@@ -134,7 +169,7 @@ namespace NScript.AndroidBot
             }
         }
 
-        internal static UInt16 to_fixed_point_16(float f)
+        internal static UInt16 ToFixedPoint16(float f)
         {
             UInt32 u = (UInt16)(f * (2 << 16)); // 2^16
             if (u >= 0xffff)
@@ -155,6 +190,22 @@ namespace NScript.AndroidBot
         }
 
         protected abstract int SerializePayloads(Byte* buf);
+    }
+
+    /// <summary>
+    /// 等待的消息. 接收到这个消息后,只会等待,啥都不会干.
+    /// </summary>
+    public class WaitMsg:ControlMsg
+    {
+        public int MiniSeconds { get; private set; }
+        public WaitMsg(int miniSeconds) : base(ControlMsgType.NONE) {
+            this.MiniSeconds = miniSeconds;
+        }
+
+        protected override unsafe int SerializePayloads(byte* buf)
+        {
+            return 0;
+        }
     }
 
     public unsafe class SimpleControlMsg : ControlMsg
@@ -179,47 +230,65 @@ namespace NScript.AndroidBot
         protected override int SerializePayloads(Byte* buf)
         {
             buf[1] = (byte)Action;
-            buffer_write32be(&buf[2], (UInt32)Keycode);
-            buffer_write32be(&buf[6], Repeat);
-            buffer_write32be(&buf[10], (UInt32)Metastate);
+            BufferWrite32be(&buf[2], (UInt32)Keycode);
+            BufferWrite32be(&buf[6], Repeat);
+            BufferWrite32be(&buf[10], (UInt32)Metastate);
             return 14;
         }
     }
 
     public class InjectTextMsg : ControlMsg
     {
-        public string Text;
+        public string Text { get; private set; }
 
-        public InjectTextMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_TEXT) { }
+        public InjectTextMsg(String content) : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_TEXT) { Text = content; }
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
             const int CONTROL_MSG_INJECT_TEXT_MAX_LENGTH = 300;
             int len =
-                write_string(Text,
+                WriteString(Text,
                              CONTROL_MSG_INJECT_TEXT_MAX_LENGTH, &buf[1]);
             return 1 + len;
         }
+    }
+
+    public enum MouseEventType
+    {
+        Down,
+        Up,
+        Move
     }
 
     public class InjectTouchEventMsg : ControlMsg
     {
         public AndroidMotionEventAction Action;
         public AndroidMotionEventButtons Buttons;
-        public UInt64 PointerId;
+        public Int64 PointerId;
         public Position Position;
         public float Pressure = 0;
 
         public InjectTouchEventMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_TOUCH_EVENT) { }
 
+        public InjectTouchEventMsg(MouseEventType mouseEventType, Position postion):this()
+        {
+            if (mouseEventType == MouseEventType.Move) this.Action = AndroidMotionEventAction.AMOTION_EVENT_ACTION_MOVE;
+            else if (mouseEventType == MouseEventType.Down) this.Action = AndroidMotionEventAction.AMOTION_EVENT_ACTION_DOWN;
+            else if (mouseEventType == MouseEventType.Up) this.Action = AndroidMotionEventAction.AMOTION_EVENT_ACTION_UP;
+            this.PointerId = ControlMsg.POINTER_ID_MOUSE;
+            this.Position = postion;
+            this.Pressure = mouseEventType == MouseEventType.Up ? 0.0f : 1.0f;
+            this.Buttons = AndroidMotionEventButtons.AMOTION_EVENT_BUTTON_PRIMARY;
+        }
+
         protected override unsafe int SerializePayloads(byte* buf)
         {
             buf[1] = (byte)Action;
-            buffer_write64be(&buf[2], PointerId);
-            write_position(&buf[10], ref Position);
-            UInt16 pressureVal = to_fixed_point_16(Pressure);
-            buffer_write16be(&buf[22], pressureVal);
-            buffer_write32be(&buf[24], (uint)Buttons);
+            BufferWrite64be(&buf[2], PointerId);
+            WritePosition(&buf[10], ref Position);
+            UInt16 pressureVal = ToFixedPoint16(Pressure);
+            BufferWrite16be(&buf[22], pressureVal);
+            BufferWrite32be(&buf[24], (uint)Buttons);
             return 28;
         }
     }
@@ -229,14 +298,20 @@ namespace NScript.AndroidBot
         public InjectScrollEventMsg() : base(ControlMsgType.CONTROL_MSG_TYPE_INJECT_SCROLL_EVENT) { }
 
         public Position Position;
+        /// <summary>
+        /// the amount scrolled horizontally, positive to the right and negative to the left
+        /// </summary>
         public Int32 HScroll;
+        /// <summary>
+        /// the amount scrolled vertically, positive away from the user and negative towards the user
+        /// </summary>
         public Int32 VScroll;
 
         protected override unsafe int SerializePayloads(byte* buf)
         {
-            write_position(&buf[1], ref Position);
-            buffer_write32be(&buf[13], (UInt32) HScroll);
-            buffer_write32be(&buf[17], (UInt32)VScroll);
+            WritePosition(&buf[1], ref Position);
+            BufferWrite32be(&buf[13], (UInt32) HScroll);
+            BufferWrite32be(&buf[17], (UInt32)VScroll);
             return 21;
         }
     }
@@ -262,7 +337,7 @@ namespace NScript.AndroidBot
         protected override unsafe int SerializePayloads(byte* buf)
         {
             buf[1] = IsPaste ? (Byte)0x01 : (Byte)0x00;
-            int len = write_string(Text,
+            int len = WriteString(Text,
                                       Setting.CONTROL_MSG_CLIPBOARD_TEXT_MAX_LENGTH,
                                       &buf[2]);
             return 2 + len;

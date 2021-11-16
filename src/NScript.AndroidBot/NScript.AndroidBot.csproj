@@ -48,6 +48,9 @@
     <None Update="tools\atx-agent">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
+    <None Update="tools\sndcpy.apk">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="tools\stf-binaries-master.zip">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

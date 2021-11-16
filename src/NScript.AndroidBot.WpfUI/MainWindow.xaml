@@ -18,7 +18,9 @@
                 <ColumnDefinition></ColumnDefinition>
             </Grid.ColumnDefinitions>
             <Grid Background="LightGray">
-                <Image x:Name="cvs"></Image>
+                <Image x:Name="cvs"
+                       MouseLeftButtonDown="cvs_MouseLeftButtonDown"
+                       MouseLeftButtonUp="cvs_MouseLeftButtonUp" MouseMove="cvs_MouseMove"></Image>
             </Grid>
             <Grid Grid.Column="1">
                 <TextBox TextWrapping="WrapWithOverflow" VerticalScrollBarVisibility="Auto" x:Name="tbLayouts"></TextBox>
@@ -27,7 +29,11 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="5" >
             <Button Width="80" Click="Button_Click">测试剪贴板</Button>
             <Button Width="80" Click="ButtonSnap_Click" Margin="10,0,0,0">测试截图</Button>
+            <Button Width="80" Click="ButtonSendText_Click" Margin="10,0,0,0">发送随机文本</Button>
+            <Button Width="80" Click="ButtonSendBack_Click" Margin="10,0,0,0">后退</Button>
+            <Button Width="80" Click="ButtonSendTouchMove_Click" Margin="10,0,0,0">向上滑动</Button>
             <Button Width="80" Click="ButtonGetLayout_Click" Margin="10,0,0,0">获取布局</Button>
+            <!--<Button Width="80" Click="ButtonCrawlerPdd_Click" Margin="10,0,0,0">爬取PDD</Button>-->
         </StackPanel>
         <TextBox Grid.Row="2" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>
     </Grid>

@@ -62,7 +62,7 @@ namespace NScript.AndroidBot
         //struct sc_shortcut_mods shortcut_mods;
         public UInt16 MaxSize = 1024;
         public UInt32 BitRate = 8000000;
-        public UInt16 MaxFps;
+        public UInt16 MaxFps = 15;
         public LockVideoOrientation LockVideoOrientation;
         public byte Rotation;
         public Int16 WindowX; // SC_WINDOW_POSITION_UNDEFINED for "auto"

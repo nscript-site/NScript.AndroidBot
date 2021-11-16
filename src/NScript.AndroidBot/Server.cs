@@ -46,11 +46,14 @@ namespace NScript.AndroidBot
         public UInt16 LocalServerPort; // selected from port_range
 
         public String DeviceName { get; private set; }
+
         public System.Drawing.Size FrameSize { get; private set; }
 
         public Action<String> OnMsg { get; set; }
 
         public Action OnVideoSocketConnected { get; set; }
+
+        public Action OnControlSocketConnected { get; set; }
 
         private AtxAgentServer AtxAgent { get; set; }
 
@@ -332,6 +335,11 @@ namespace NScript.AndroidBot
                 this.FrameSize = new System.Drawing.Size(width, height);
 
                 OnVideoSocketConnected?.Invoke();
+            }
+
+            if(this.ControlSocket != null)
+            {
+                OnControlSocketConnected?.Invoke();
             }
         }
 
