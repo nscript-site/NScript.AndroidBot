@@ -147,13 +147,23 @@ namespace NScript.AndroidBot.WpfUI
 
         private void ButtonGetLayout_Click(object sender, RoutedEventArgs e)
         {
+            GetLayout(false);
+        }
+
+        private void ButtonGetTextLayout_Click(object sender, RoutedEventArgs e)
+        {
+            GetLayout(true);
+        }
+
+        private void GetLayout(bool onlyShowTextControls)
+        {
             this.tbLayouts.Text = String.Empty;
 
             Task.Run(() => {
                 String msg = String.Empty;
                 try
                 {
-                    msg = Client.DumpUI();
+                    msg = Client.DumpUI(onlyShowTextControls);
                 }
                 catch (Exception ex)
                 {

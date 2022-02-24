@@ -3,16 +3,17 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace NScript.AndroidBot
 {
     using FFmpeg.AutoGen;
 
-    public unsafe class Stream
+    public unsafe class MediaStream
     {
-        public Socket Socket { get; private set; }
+        public Socket VideoSocket { get; private set; }
+        public Socket AudioSocket { get; private set; }
         private List<PacketSink> Sinks { get; set; } = new List<PacketSink>();
         public AVCodecContext* codec_ctx;
         public AVCodecParserContext* parser;
@@ -74,7 +75,7 @@ namespace NScript.AndroidBot
             Byte* pHeader = stackalloc byte[HEADER_SIZE];
             Span<Byte> header = new Span<byte>(pHeader, HEADER_SIZE);
 
-            int r = NetUtils.RecvAll(Socket, header);
+            int r = NetUtils.RecvAll(VideoSocket, header);
             if (r < HEADER_SIZE)
             {
                 OnMsg?.Invoke($"[{Name}] packet header RecvAll fail");
@@ -94,7 +95,7 @@ namespace NScript.AndroidBot
             }
 
             Span<Byte> data = new Span<byte>(packet->data, len);
-            r = NetUtils.RecvAll(Socket, data);
+            r = NetUtils.RecvAll(VideoSocket, data);
             if (r < 0 || r < len)
             {
                 ffmpeg.av_packet_unref(packet);
@@ -267,7 +268,7 @@ namespace NScript.AndroidBot
             return true;
         }
 
-        public int RunBackgroundWork()
+        private int RunVideoDecodeBackgroundWork()
         {
             OnMsg?.Invoke($"[{Name}] start video decoding");
 
@@ -353,18 +354,51 @@ namespace NScript.AndroidBot
             return 0;
         }
 
-        public Task Task { get; private set; }
+        public Task ReceiveVideoDataTask { get; private set; }
 
-        public bool Receive(Socket socket) {
+        public bool ReceiveVideoSocket(Socket socket) {
             if (socket == null) return false;
 
-            this.Socket = socket;
-            Task = new Task(() =>
+            this.VideoSocket = socket;
+            ReceiveVideoDataTask = new Task(() =>
             {
-                RunBackgroundWork();
+                RunVideoDecodeBackgroundWork();
             });
-            this.Task.Start();
+            this.ReceiveVideoDataTask.Start();
             return true;
+        }
+
+        public Task ReceiveAudioDataTask { get; private set; }
+
+        public bool ReceiveAudioSocket(Socket socket)
+        {
+            if (socket == null) return false;
+
+            this.AudioSocket = socket;
+            ReceiveAudioDataTask = new Task(() =>
+            {
+                ReceiveAudioDataBackgroundWork();
+            });
+            this.ReceiveAudioDataTask.Start();
+            return true;
+        }
+
+        private void ReceiveAudioDataBackgroundWork()
+        {
+            const int HEADER_SIZE = 8000*100;
+            Byte[] buff = new byte[HEADER_SIZE];
+            Span<Byte> header = new Span<byte>(buff);
+
+            DirectoryInfo dirTmp = new DirectoryInfo("./tmp");
+            if (dirTmp.Exists == false) dirTmp.Create();
+
+            while(true)
+            {
+                // 录制的是 44100 Hz 单通道 Singed 32-bit PCM
+                int r = NetUtils.RecvAll(AudioSocket, header);
+                String fileName = DateTime.Now.ToFileTimeUtc().ToString() + ".pcm";
+                System.IO.File.WriteAllBytes(Path.Combine(dirTmp.FullName, fileName), buff);
+            }
         }
     }
 }

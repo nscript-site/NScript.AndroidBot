@@ -16,8 +16,6 @@ namespace NScript.AndroidBot
     {
         public device_msg_type type;
         public string text;
-
-
     }
 
     public class Receiver

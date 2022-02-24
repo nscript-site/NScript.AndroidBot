@@ -34,6 +34,7 @@ namespace NScript.AndroidBot
         public String codec_options;
         public String encoder_name;
         public UInt16 port_start = 29187;
+        public UInt16 audio_port_start = 28200;
         public UInt16 max_size;
         public UInt32 bit_rate = 8000000;
         public UInt16 max_fps;

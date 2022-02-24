@@ -23,7 +23,14 @@
                        MouseLeftButtonUp="cvs_MouseLeftButtonUp" MouseMove="cvs_MouseMove"></Image>
             </Grid>
             <Grid Grid.Column="1">
-                <TextBox TextWrapping="WrapWithOverflow" VerticalScrollBarVisibility="Auto" x:Name="tbLayouts"></TextBox>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"></RowDefinition>
+                        <RowDefinition Height="40"></RowDefinition>
+                    </Grid.RowDefinitions>
+                    <TextBox Grid.Row="0" TextWrapping="WrapWithOverflow" VerticalScrollBarVisibility="Auto" x:Name="tbLayouts"></TextBox>
+                    <local:UCWave Grid.Row="1" Background="Gray"></local:UCWave>
+                </Grid>
             </Grid>
         </Grid>
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="5" >
@@ -33,6 +40,7 @@
             <Button Width="80" Click="ButtonSendBack_Click" Margin="10,0,0,0">后退</Button>
             <Button Width="80" Click="ButtonSendTouchMove_Click" Margin="10,0,0,0">向上滑动</Button>
             <Button Width="80" Click="ButtonGetLayout_Click" Margin="10,0,0,0">获取布局</Button>
+            <Button Width="80" Click="ButtonGetTextLayout_Click" Margin="10,0,0,0">获取布局(文本)</Button>
             <!--<Button Width="80" Click="ButtonCrawlerPdd_Click" Margin="10,0,0,0">爬取PDD</Button>-->
         </StackPanel>
         <TextBox Grid.Row="2" x:Name="tbMsgs" TextWrapping="WrapWithOverflow"></TextBox>

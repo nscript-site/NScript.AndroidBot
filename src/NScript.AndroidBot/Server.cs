@@ -31,9 +31,14 @@ namespace NScript.AndroidBot
 
         public const String SCRCPY_SOCKET_NAME = "scrcpy";
         public const String SCRCPY_SERVER_FILENAME = "scrcpy-server";
-        public const String DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
+        public const String SCRCPY_DEVICE_SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
         public const String DEFAULT_SERVER_PATH = "/share/scrcpy/" + SCRCPY_SERVER_FILENAME;
         public const String SCRCPY_VERSION = "1.18";
+
+        public const String SNDCPY_SOCKET_NAME = "sndcpy";
+        public const String SNDCPY_LOCAL_PATH = "./tools/sndcpy.apk";
+        public const String SNDCPY_DEVICE_SERVER_PATH = "/data/local/tmp/sndcpy.adk";
+
         static readonly IPAddress IPV4_LOCALHOST = IPAddress.Parse("127.0.0.1");
         const int DEVICE_NAME_FIELD_LENGTH = 64;
 
@@ -43,7 +48,11 @@ namespace NScript.AndroidBot
         public ProcessSession ScrcpyServer;
         public Socket VideoSocket;
         public Socket ControlSocket;
-        public UInt16 LocalServerPort; // selected from port_range
+        public UInt16 LocalScrcpyServerPort; // selected from port_range
+
+        public ProcessSession SndcpyServer;
+        public Socket AudioSocket;
+        public UInt16 LocalSndcpyServerPort = 28200;
 
         public String DeviceName { get; private set; }
 
@@ -52,7 +61,7 @@ namespace NScript.AndroidBot
         public Action<String> OnMsg { get; set; }
 
         public Action OnVideoSocketConnected { get; set; }
-
+        public Action OnAudioSocketConnected { get; set; }
         public Action OnControlSocketConnected { get; set; }
 
         private AtxAgentServer AtxAgent { get; set; }
@@ -70,7 +79,7 @@ namespace NScript.AndroidBot
                 return false;
             }
 
-            ProcessSession process = AdbUtils.adb_push(Serial, deviceFilePath, DEVICE_SERVER_PATH);
+            ProcessSession process = AdbUtils.adb_push(Serial, deviceFilePath, SCRCPY_DEVICE_SERVER_PATH);
             process.OnMsg = process.OnErr = this.OnMsg;
             return AdbUtils.process_check_success(process, "adb push", true);
         }
@@ -83,11 +92,20 @@ namespace NScript.AndroidBot
             return AdbUtils.process_check_success(process, "adb forward --remove", true);
         }
 
-        public bool EnableTunnelForward(String serial, UInt16 localPort, UInt16 remotePort = 0)
+        public bool EnableTunnelForward(String serial, UInt16 localPort, String remoteSocketName)
         {
             if (IsPortUsed(localPort)) return false;
-            ProcessSession process = remotePort > 0 ? AdbUtils.adb_forward(serial, localPort, remotePort) 
-                : AdbUtils.adb_forward(serial, localPort, SCRCPY_SOCKET_NAME);
+            ProcessSession process = AdbUtils.adb_forward(serial, localPort, remoteSocketName);
+            process.OnMsg = process.OnErr = this.OnMsg;
+            bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
+            SetPortUsed(localPort);
+            return rtn;
+        }
+
+        public bool EnableTunnelForward(String serial, UInt16 localPort, UInt16 remotePort)
+        {
+            if (IsPortUsed(localPort)) return false;
+            ProcessSession process = AdbUtils.adb_forward(serial, localPort, remotePort);
             process.OnMsg = process.OnErr = this.OnMsg;
             bool rtn = AdbUtils.process_check_success(process, "adb forward", true);
             SetPortUsed(localPort);
@@ -132,7 +150,8 @@ namespace NScript.AndroidBot
         internal static bool IsConnected(Socket socket)
         {
             if (socket == null) return false;
-            if (!socket.Poll(100, SelectMode.SelectRead) || socket.Available > 0) return true;
+            if (socket.Poll(-1, SelectMode.SelectError) == false) return true;
+            //if (socket.Poll(-1, SelectMode.SelectRead) || socket.Available > 0) return true;
             else return false;
         }
 
@@ -142,12 +161,21 @@ namespace NScript.AndroidBot
                 while(true)
                 {
                     System.Threading.Thread.Sleep(1000);
+
                     bool isVideoSocketConnected = IsConnected(VideoSocket);
                     bool isControlSocketConnected = IsConnected(ControlSocket);
+                    bool isAudioSocketConnected = IsConnected(AudioSocket);
+
                     if(isVideoSocketConnected == false || isControlSocketConnected == false)
                     {
                         OnMsg?.Invoke($"[{Serial}][Daemon]: VideoSocket-{isVideoSocketConnected},ControlSocket-{isControlSocketConnected}");
                         ConnectScrcpy();
+                    }
+
+                    if(isAudioSocketConnected == false)
+                    {
+                        OnMsg?.Invoke($"[{Serial}][Daemon]: AudioSocket-{isAudioSocketConnected},ControlSocket-{isControlSocketConnected}");
+                        ConnectSndcpy();
                     }
                 }
             });
@@ -171,9 +199,9 @@ namespace NScript.AndroidBot
         {
             for (UInt16 port = portStart; port < 62300; port++)
             {
-                if (EnableTunnelForward(this.Serial, port))
+                if (EnableTunnelForward(this.Serial, port, SCRCPY_SOCKET_NAME))
                 {
-                    this.LocalServerPort = port;
+                    this.LocalScrcpyServerPort = port;
                     return true;
                 }
             }
@@ -186,7 +214,7 @@ namespace NScript.AndroidBot
         {
             String[] cmd = {
                 "shell",
-                "CLASSPATH=" + DEVICE_SERVER_PATH,
+                "CLASSPATH=" + SCRCPY_DEVICE_SERVER_PATH,
                 "app_process",
                 "/", // unused
                 "com.genymobile.scrcpy.Server",
@@ -254,6 +282,7 @@ namespace NScript.AndroidBot
             this.Serial = serverParams.serial;
 
             ConnectScrcpy();
+            ConnectSndcpy();
             ConnectAtxAgent();
             RunDaemon();
 
@@ -309,7 +338,6 @@ namespace NScript.AndroidBot
                 catch(Exception ex)
                 {
                     this.PushScrcpyServerToDevice();
-
                     this.EnableScrcpyForward(StartServerParams.port_start);
 
                     this.ScrcpyServer = this.RunScrcpyServer(StartServerParams);
@@ -320,14 +348,46 @@ namespace NScript.AndroidBot
             }
         }
 
+        private void ConnectSndcpy()
+        {
+            lock (this)
+            {
+                this.StopSndcpySockets();
+
+                this.InstallSndcpy();
+                this.EnableSndcpyForward(StartServerParams.audio_port_start);
+
+                this.SndcpyServer = this.RunSndcpyServer(StartServerParams);
+                this.SndcpyServer.OnMsg = this.SndcpyServer.OnErr = this.OnMsg;
+                this.SndcpyServer.RunAtBackground();
+
+                try
+                {
+                    ConnectSndcpySockets();
+                }
+                catch (Exception ex)
+                {
+                    this.InstallSndcpy();
+                    this.EnableSndcpyForward(StartServerParams.audio_port_start);
+
+                    this.SndcpyServer = this.RunSndcpyServer(StartServerParams);
+                    this.SndcpyServer.OnMsg = this.SndcpyServer.OnErr = this.OnMsg;
+                    this.SndcpyServer.RunAtBackground();
+                    ConnectSndcpySockets();
+                }
+            }
+        }
+
+        #region Scrcpy Methods
+
         private void ConnectScrcpySockets()  // server_connect_to()  
         {
             UInt32 attempts = 1000;
             UInt32 delay = 100; // ms
-            this.VideoSocket = this.ConnectToServer(LocalServerPort, attempts, delay);
-            this.ControlSocket = NetUtils.Connect(IPV4_LOCALHOST, this.LocalServerPort);
+            this.VideoSocket = this.ConnectToServer(LocalScrcpyServerPort, attempts, delay);
+            this.ControlSocket = NetUtils.Connect(IPV4_LOCALHOST, this.LocalScrcpyServerPort);
 
-            if(this.VideoSocket != null)
+            if (this.VideoSocket != null)
             {
                 // The sockets will be closed on stop if device_read_info() fails
                 (string deviceName, int width, int height) = ReadDeviceInfo(this.VideoSocket);
@@ -337,7 +397,7 @@ namespace NScript.AndroidBot
                 OnVideoSocketConnected?.Invoke();
             }
 
-            if(this.ControlSocket != null)
+            if (this.ControlSocket != null)
             {
                 OnControlSocketConnected?.Invoke();
             }
@@ -349,7 +409,7 @@ namespace NScript.AndroidBot
 
             //this.ControlSocket?.Close();
 
-            this.DisableTunnelForward(Serial, LocalServerPort);
+            this.DisableTunnelForward(Serial, LocalScrcpyServerPort);
 
             this.ScrcpyServer?.Kill();
         }
@@ -379,6 +439,8 @@ namespace NScript.AndroidBot
                     | buf[DEVICE_NAME_FIELD_LENGTH + 3];
             return (deviceName, width, height);
         }
+
+        #endregion
 
         #region AtxAgent Methods
 
@@ -450,6 +512,67 @@ namespace NScript.AndroidBot
         }
 
         #endregion
+
+        #region
+
+        public void StopSndcpySockets()
+        {
+
+            this.DisableTunnelForward(Serial, LocalSndcpyServerPort);
+
+            this.SndcpyServer?.Kill();
+        }
+
+        public bool EnableSndcpyForward(UInt16 portStart = 28200)
+        {
+            for (UInt16 port = portStart; port < 62300; port++)
+            {
+                if (EnableTunnelForward(this.Serial, port, SNDCPY_SOCKET_NAME))
+                {
+                    this.LocalSndcpyServerPort = port;
+                    return true;
+                }
+            }
+
+            LOGE($"Could not forward sndcpy port");
+            return false;
+        }
+
+        public ProcessSession RunSndcpyServer(ServerParams serverParams)
+        {
+            String[] cmd = {
+                "shell",
+                "am",
+                "start",
+                "com.rom1v.sndcpy/.MainActivity"
+            };
+
+            return AdbUtils.adb_execute(Serial, cmd);
+        }
+
+        private void ConnectSndcpySockets()  // server_connect_to()  
+        {
+            UInt32 attempts = 1000;
+            UInt32 delay = 100; // ms
+            this.AudioSocket = this.ConnectToServer(LocalSndcpyServerPort, attempts, delay);
+
+            if (this.AudioSocket != null)
+            {
+                OnAudioSocketConnected?.Invoke();
+            }
+        }
+
+        internal void InstallSndcpy()
+        {
+            this.OnMsg?.Invoke($"[{Serial}] install sndcpy");
+            this.OnMsg?.Invoke($"[{Serial}] adb shell pm uninstall com.rom1v.sndcpy");
+            AdbUtils.RunShell(Serial, "uninstall", "com.rom1v.sndcpy");
+            AdbUtils.RunShell(Serial, "install", "-t", "-g", Push("./tools/sndcpy.apk", "0644"));
+            AdbUtils.RunShell(Serial, "appops", "set", "com.rom1v.sndcpy", "PROJECT_MEDIA","allow");
+        }
+
+        #endregion
+
 
         internal String Push(String filePath, String permission = "0755", String dest = null)
         {

@@ -37,7 +37,7 @@ namespace NScript.AndroidBot
         #endregion
 
         private Server Server { get; set; }
-        private Stream Stream { get; set; }
+        private MediaStream Stream { get; set; }
         private Decoder Decoder { get; set; }
         private FrameSink FrameSink { get; set; }
         private Controller Controller { get; set; }
@@ -45,10 +45,13 @@ namespace NScript.AndroidBot
         /// <summary>
         /// 将 UI 界面 dump 出来。结果为 xml 布局文件。
         /// </summary>
+        /// <param name="ignoreTextlessControls">是否忽略没有文本的控件</param>
         /// <returns></returns>
-        public String DumpUI()
+        public String DumpUI(bool ignoreTextlessControls = false)
         {
-            return Server.DumpUI();
+            String content = Server.DumpUI();
+            if (ignoreTextlessControls == true) content = LayoutUtils.ClearXmlContent(content);
+            return content;
         }
 
         /// <summary>
@@ -212,12 +215,17 @@ namespace NScript.AndroidBot
                 this.FrameSink.OnRender = this.OnRender;
                 this.Decoder.AddSink(this.FrameSink);
             }
-            this.Stream = new Stream();
+            this.Stream = new MediaStream();
             this.Stream.OnMsg = this.OnMsg;
             this.Stream.AddSink(this.Decoder);
-            this.Stream.Receive(this.Server.VideoSocket);
+            this.Stream.ReceiveVideoSocket(this.Server.VideoSocket);
+            this.Stream.ReceiveAudioSocket(this.Server.AudioSocket);
             this.Server.OnVideoSocketConnected = () => {
-                this.Stream.Receive(this.Server.VideoSocket);
+                this.Stream.ReceiveVideoSocket(this.Server.VideoSocket);
+            };
+            this.Server.OnAudioSocketConnected = () =>
+            {
+                this.Stream.ReceiveAudioSocket(this.Server.AudioSocket);
             };
             this.Controller = new Controller();
             this.Controller.Bind(this.Server.ControlSocket);
