@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 namespace NScript.AndroidBot
 {
     using Geb.Image;
+    using System.Xml;
+    using System.Xml.XPath;
+    using System.Drawing;
 
     public class BotClient
     {
@@ -43,15 +46,42 @@ namespace NScript.AndroidBot
         private Controller Controller { get; set; }
 
         /// <summary>
-        /// 将 UI 界面 dump 出来。结果为 xml 布局文件。
+        /// 获得 xml 描述的当前界面内容。
         /// </summary>
         /// <param name="ignoreTextlessControls">是否忽略没有文本的控件</param>
         /// <returns></returns>
-        public String DumpUI(bool ignoreTextlessControls = false)
+        public PageLayout GetScreenXml(bool ignoreTextlessControls = true)
         {
             String content = Server.DumpUI();
             if (ignoreTextlessControls == true) content = LayoutUtils.ClearXmlContent(content);
-            return content;
+            return new PageLayout(content);
+        }
+
+        static char[] splitters = new char[] { '[', ']', ',' };
+
+        /// <summary>
+        /// 获得指定节点的 Bounds
+        /// </summary>
+        /// <param name="node"></param>
+        /// <returns></returns>
+        public Nullable<Rectangle> GetNodeBounds(XPathNavigator node)
+        {
+            // <node text="" resource-id="" content-desc="4G 手机信号满格。" bounds="[190,15][251,57]"></node>
+
+            if (node == null) return null;
+            String attr = node.GetAttribute("bounds", "");
+            if (attr == null) return null;
+            float scale = (float)Server.GetScale();
+            String[] terms = attr.Split(splitters, StringSplitOptions.RemoveEmptyEntries);
+            if (terms.Length != 4) return null;
+            float x0, y0 = 0;
+            float x1, y1 = 0;
+            float.TryParse(terms[0], out x0);
+            float.TryParse(terms[1], out y0);
+            float.TryParse(terms[2], out x1);
+            float.TryParse(terms[3], out y1);
+            
+            return new Rectangle((int)Math.Round(x0 * scale), (int)Math.Round(y0 * scale), (int)Math.Round((x1 - x0)*scale), (int)Math.Round((y1 - y0)*scale));
         }
 
         /// <summary>
@@ -65,9 +95,19 @@ namespace NScript.AndroidBot
         public Action<String> OnMsg { get; set; }
 
         /// <summary>
+        /// 媒体切片器
+        /// </summary>
+        public MediaSlicer Slicer { get; private set; } = new MediaSlicer();
+
+        /// <summary>
         /// 显示画面的回调函数
         /// </summary>
         public Action<ImageBgr24> OnRender { get; set; }
+
+        /// <summary>
+        /// 音频数据的回调函数
+        /// </summary>
+        public Action<Byte[]> OnAudioDataReceive { get; set; }
 
         /// <summary>
         /// 获取当前画面截图
@@ -97,6 +137,20 @@ namespace NScript.AndroidBot
         /// <returns></returns>
         public BotClient Send(MouseEventType type, int x, int y)
         {
+            return this.Push(new InjectTouchEventMsg(type, new Position(x, y, this.FrameSize)));
+        }
+
+        /// <summary>
+        /// 在指定的 node 上发送鼠标事件
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="node"></param>
+        /// <returns></returns>
+        public BotClient Send(MouseEventType type, XPathNavigator node)
+        {
+            var bounds = GetNodeBounds(node);
+            int x = bounds.Value.X + bounds.Value.Width / 2;
+            int y = bounds.Value.Y + bounds.Value.Height / 2;
             return this.Push(new InjectTouchEventMsg(type, new Position(x, y, this.FrameSize)));
         }
 
@@ -139,6 +193,19 @@ namespace NScript.AndroidBot
             this.Push(new InjectTouchEventMsg(MouseEventType.Down, new Position(x, y, this.FrameSize)));
             this.Push(new InjectTouchEventMsg(MouseEventType.Up, new Position(x, y, this.FrameSize)));
             return this;
+        }
+
+        /// <summary>
+        /// 在指定的 node 上发送点击事件
+        /// </summary>
+        /// <param name="node"></param>
+        /// <returns></returns>
+        public BotClient SentClick(XPathNavigator node)
+        {
+            var bounds = GetNodeBounds(node);
+            int x = bounds.Value.X + bounds.Value.Width / 2;
+            int y = bounds.Value.Y + bounds.Value.Height / 2;
+            return SendClick(x, y);
         }
 
         public BotClient SendText(String content)
@@ -206,26 +273,30 @@ namespace NScript.AndroidBot
             this.Server = new Server();
             this.Server.OnMsg = this.OnMsg;
             this.Server.Start(serverParams);
+            this.Slicer.FrameRate = serverParams.max_fps;
             this.Decoder = new Decoder();
             if(options.Display == true)
             {
                 this.FrameSink = new FrameSink();
                 this.FrameSink.Width = this.Server.FrameSize.Width;
                 this.FrameSink.Height = this.Server.FrameSize.Height;
-                this.FrameSink.OnRender = this.OnRender;
+                this.FrameSink.OnRender = (t) => { this.Slicer.Receive(t); this.OnRender?.Invoke(t); } ;
                 this.Decoder.AddSink(this.FrameSink);
             }
             this.Stream = new MediaStream();
             this.Stream.OnMsg = this.OnMsg;
             this.Stream.AddSink(this.Decoder);
             this.Stream.ReceiveVideoSocket(this.Server.VideoSocket);
-            this.Stream.ReceiveAudioSocket(this.Server.AudioSocket);
+            this.Stream.ReceiveAudioSocket(this.Server.AudioSocket, Options.MaxFps);
+
+            this.Stream.OnAudioDataReceive = (data) => { this.Slicer.Receive(data); };
+
             this.Server.OnVideoSocketConnected = () => {
                 this.Stream.ReceiveVideoSocket(this.Server.VideoSocket);
             };
             this.Server.OnAudioSocketConnected = () =>
             {
-                this.Stream.ReceiveAudioSocket(this.Server.AudioSocket);
+                this.Stream.ReceiveAudioSocket(this.Server.AudioSocket, Options.MaxFps);
             };
             this.Controller = new Controller();
             this.Controller.Bind(this.Server.ControlSocket);

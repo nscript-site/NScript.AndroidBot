@@ -168,6 +168,9 @@ namespace NScript.AndroidBot
                 throw new BotException("Could not open codec");
             }
 
+            //double framerate = (double)(codec_ctx->framerate.num/ (double)codec_ctx->framerate.den);
+            //Console.WriteLine(framerate);
+
             frame = ffmpeg.av_frame_alloc();
             if (frame == null)
             {

@@ -66,6 +66,12 @@ namespace NScript.AndroidBot
 
         private AtxAgentServer AtxAgent { get; set; }
 
+        public double GetScale()
+        {
+            if (FrameSize == default(System.Drawing.Size) || ScreenHeight == 0) return 1;
+            return FrameSize.Height / (double) ScreenHeight;
+        }
+
         public string GetScrcpyServerDeviceFileName()
         {
             return SCRCPY_SERVER_FILENAME;
@@ -239,6 +245,33 @@ namespace NScript.AndroidBot
             return AdbUtils.adb_execute(Serial, cmd);
         }
 
+        public int ScreenWidth { get; private set; }
+        public int ScreenHeight { get; private set; }
+
+        public void QueryScreenSize()
+        {
+            ProcessSession session = AdbUtils.adb_execute(Serial, new string[] { "shell","wm","size" });
+            session.OnMsg = (msg) => {
+                String[] terms = msg.Split(":");
+                if(terms.Length == 2)
+                {
+                    terms = terms[1].Split("x");
+                    if(terms.Length == 2)
+                    {
+                        String wStr = terms[0].Trim();
+                        String hStr = terms[1].Trim();
+                        int width = 0;
+                        int height = 0;
+                        int.TryParse(wStr, out width);
+                        int.TryParse(hStr, out height);
+                        ScreenWidth = width;
+                        ScreenHeight = height;
+                    }
+                }
+            };
+            session.Run();
+        }
+
         public Socket ConnectAndReadByte(UInt16 port)
         {
             Socket socket = NetUtils.Connect(IPV4_LOCALHOST, port);
@@ -280,6 +313,8 @@ namespace NScript.AndroidBot
         {
             StartServerParams = serverParams;
             this.Serial = serverParams.serial;
+
+            QueryScreenSize();
 
             ConnectScrcpy();
             ConnectSndcpy();
@@ -567,12 +602,12 @@ namespace NScript.AndroidBot
             this.OnMsg?.Invoke($"[{Serial}] install sndcpy");
             this.OnMsg?.Invoke($"[{Serial}] adb shell pm uninstall com.rom1v.sndcpy");
             AdbUtils.RunShell(Serial, "uninstall", "com.rom1v.sndcpy");
-            AdbUtils.RunShell(Serial, "install", "-t", "-g", Push("./tools/sndcpy.apk", "0644"));
+//            AdbUtils.RunShell(Serial, "install", "-t", "-g", Push("./tools/sndcpy.apk", "0644"));
+            AdbUtils.RunShell(Serial, "pm", "install", "-r", "-g", "-t", Push("./tools/sndcpy.apk"));
             AdbUtils.RunShell(Serial, "appops", "set", "com.rom1v.sndcpy", "PROJECT_MEDIA","allow");
         }
 
         #endregion
-
 
         internal String Push(String filePath, String permission = "0755", String dest = null)
         {

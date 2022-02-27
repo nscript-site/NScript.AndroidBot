@@ -24,6 +24,11 @@ namespace NScript.AndroidBot
 
         public String Name { get; set; } = String.Empty;
 
+        /// <summary>
+        /// 音频数据的回调函数
+        /// </summary>
+        public Action<Byte[]> OnAudioDataReceive { get; set; }
+
         public void Cbs(void* userData)
         {
             OnCbs?.Invoke((IntPtr)userData);
@@ -370,34 +375,61 @@ namespace NScript.AndroidBot
 
         public Task ReceiveAudioDataTask { get; private set; }
 
-        public bool ReceiveAudioSocket(Socket socket)
+        public bool ReceiveAudioSocket(Socket socket, int fps)
         {
             if (socket == null) return false;
 
             this.AudioSocket = socket;
             ReceiveAudioDataTask = new Task(() =>
             {
-                ReceiveAudioDataBackgroundWork();
+                ReceiveAudioDataBackgroundWork(fps);
             });
             this.ReceiveAudioDataTask.Start();
             return true;
         }
 
-        private void ReceiveAudioDataBackgroundWork()
+        private void ReceiveAudioDataBackgroundWork(int fps)
         {
-            const int HEADER_SIZE = 8000*100;
+            int HEADER_SIZE = (44100*4)/fps;
             Byte[] buff = new byte[HEADER_SIZE];
-            Span<Byte> header = new Span<byte>(buff);
-
-            DirectoryInfo dirTmp = new DirectoryInfo("./tmp");
-            if (dirTmp.Exists == false) dirTmp.Create();
-
-            while(true)
+            fixed(Byte* pBuff = buff)
             {
-                // 录制的是 44100 Hz 单通道 Singed 32-bit PCM
-                int r = NetUtils.RecvAll(AudioSocket, header);
-                String fileName = DateTime.Now.ToFileTimeUtc().ToString() + ".pcm";
-                System.IO.File.WriteAllBytes(Path.Combine(dirTmp.FullName, fileName), buff);
+                Span<Byte> header = new Span<byte>(buff);
+                Span<Byte4> b4 = new Span<Byte4>(pBuff, buff.Length / 4);
+
+                //DirectoryInfo dirTmp = new DirectoryInfo("./tmp");
+                //if (dirTmp.Exists == false) dirTmp.Create();
+
+                while (true)
+                {
+                    // 录制的是 44100 Hz 单通道 Singed 32-bit PCM
+                    int r = NetUtils.RecvAll(AudioSocket, header);
+
+                    for (int i = 0; i < b4.Length; i++)
+                        b4[i] = b4[i].Invert(); // 大端转小端
+
+                    OnAudioDataReceive?.Invoke(buff);
+
+                    //File.WriteAllBytes(Path.Combine(dirTmp.FullName, DateTime.Now.ToFileTimeUtc()+".pcm"), buff);
+                }
+            }
+        }
+
+        public struct Byte4
+        {
+            public Byte B1;
+            public Byte B2;
+            public Byte B3;
+            public Byte B4;
+
+            public Byte4 Invert()
+            {
+                Byte4 b = new Byte4();
+                b.B1 = this.B4;
+                b.B2 = this.B3;
+                b.B3 = this.B2;
+                b.B4 = this.B1;
+                return b;
             }
         }
     }

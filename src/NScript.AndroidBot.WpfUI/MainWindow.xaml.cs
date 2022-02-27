@@ -38,6 +38,7 @@ namespace NScript.AndroidBot.WpfUI
                 Client.Options.LogLevel = LogLevel.VERBOSE;
                 Client.OnMsg = OnMsg;           // 监听程序
                 Client.OnRender = OnRender;     // 如果不需要显示画面，可以不设置 OnRender
+                Client.Slicer.Enable = true;
                 Client.Run();                   // 启动 BotClient
             });
         }
@@ -163,7 +164,7 @@ namespace NScript.AndroidBot.WpfUI
                 String msg = String.Empty;
                 try
                 {
-                    msg = Client.DumpUI(onlyShowTextControls);
+                    msg = Client.GetScreenXml(onlyShowTextControls).Content;
                 }
                 catch (Exception ex)
                 {
