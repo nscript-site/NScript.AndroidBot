@@ -20,7 +20,10 @@ namespace NScript.AndroidBot
 
         private DateTime Start = DateTime.Now;
 
-        public const double MaxDuration = 5;
+        /// <summary>
+        /// 切片的最大长度，单位是秒
+        /// </summary>
+        public double MaxDuration { get; set; } = 600;
 
         public bool Enable { get; set; }
 
